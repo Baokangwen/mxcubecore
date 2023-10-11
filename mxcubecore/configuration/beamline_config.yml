@@ -44,7 +44,7 @@ _objects:
     #- diffractometer: bl19u/md2.xml
     - diffractometer: bl19u/udiff.xml
     - bzoom: bl19u/udiff/bzoom_video.xml
-    - lims: lims.xml
+    - lims: lims_ssrf.xml
     - sample_view: bl19u/sample_view.xml
     - queue_manager: bl19u/queue.xml
     - queue_model: queue_model.xml
