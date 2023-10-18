@@ -11,6 +11,11 @@
       <ispyb>fx</ispyb>
       <gui>fx</gui>
     </proposal>
+    <proposal>
+      <code>zhangsan</code>
+      <ispyb>zhangsan</ispyb>
+      <gui>mx</gui>
+    </proposal>
   </proposals>
 
   <inhouse_users>
@@ -45,6 +50,10 @@
     <proposal>
       <code>mxihr</code>
       <number>6</number>
+    </proposal>
+    <proposal>
+      <code>zhangsan</code>
+      <number></number>
     </proposal>
   </inhouse_users>
 

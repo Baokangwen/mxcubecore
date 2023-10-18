@@ -11,6 +11,6 @@
   <restUserName></restUserName>
   <restPass></restPass>
 
-  <object role="session" href="/session"/>
+  <object role="session" href="/bl19u/session"/>
 
 </object>

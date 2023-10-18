@@ -8,8 +8,9 @@
   </base_result_url>
   <ws_username>zhangsan</ws_username>
   <ws_password>zhangsan</ws_password>
+<!--  user/proposal-->
   <loginType>user</loginType>
-  <object role="session" href="/session"/>
+  <object role="session" href="/bl19u/session"/>
   <object role="ldapServer" href="/ldapconnection"/>
   <authServerType>ispyb</authServerType>
 </object>
