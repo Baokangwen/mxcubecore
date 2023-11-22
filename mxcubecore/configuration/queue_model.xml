@@ -1,4 +1,4 @@
 <object class="QueueModel" role="QueueModel">
-  <object href="/queue" role="queue"/>    
+  <object href="bl19u/queue" role="queue"/>
 </object>
 
