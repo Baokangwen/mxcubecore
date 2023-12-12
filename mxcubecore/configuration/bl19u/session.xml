@@ -12,8 +12,8 @@
       <gui>fx</gui>
     </proposal>
     <proposal>
-      <code>zhangsan</code>
-      <ispyb>zhangsan</ispyb>
+      <code>zhangsan1</code>
+      <ispyb>zhangsan1</ispyb>
       <gui>mx</gui>
     </proposal>
   </proposals>
@@ -53,7 +53,7 @@
     </proposal>
     <proposal>
       <code>zhangsan</code>
-      <number></number>
+      <number>1</number>
     </proposal>
   </inhouse_users>
 

@@ -6,7 +6,7 @@
   <base_result_url>
     http://10.30.61.230/ispyb/
   </base_result_url>
-  <ws_username>zhangsan</ws_username>
+  <ws_username>zhangsan1</ws_username>
   <ws_password>zhangsan</ws_password>
 <!--  user/proposal-->
   <loginType>user</loginType>
