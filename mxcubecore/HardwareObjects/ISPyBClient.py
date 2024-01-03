@@ -729,7 +729,7 @@ class ISPyBClient(HardwareObject):
         return ok, msg
 
     def get_todays_session(self, prop, create_session=True):
-        logging.getLogger("HWR").debug("getting proposal for todays session")
+        # logging.getLogger("HWR").debug("getting proposal for todays session")
 
         try:
             sessions = prop["Session"]
@@ -792,7 +792,7 @@ class ISPyBClient(HardwareObject):
             logging.getLogger("HWR").debug("create new session")
         elif todays_session:
             session_id = todays_session["sessionId"]
-            logging.getLogger("HWR").debug("getting local contact for %s" % session_id)
+            # logging.getLogger("HWR").debug("getting local contact for %s" % session_id)
             localcontact = self.get_session_local_contact(session_id)
         else:
             todays_session = {}
@@ -963,7 +963,8 @@ class ISPyBClient(HardwareObject):
             if "collection_id" in mx_collection:
                 try:
                     # Update the data collection group
-                    self.store_data_collection_group(mx_collection)
+                    g_id = self.store_data_collection_group(mx_collection)
+                    mx_collection['group_id'] = g_id
                     data_collection = ISPyBValueFactory().from_data_collect_parameters(
                         self._collection, mx_collection
                     )
@@ -1619,7 +1620,7 @@ class ISPyBClient(HardwareObject):
         if self._collection:
             try:
                 res = self._collection.service.findDetectorByParam(
-                    "", manufacturer, model, mode
+                    type, manufacturer, model, mode
                 )
                 return res
             except WebFault:
