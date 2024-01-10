@@ -977,6 +977,8 @@ class ISPyBClient(HardwareObject):
                     )
                 except URLError:
                     logging.getLogger("ispyb_client").exception(_CONNECTION_ERROR_MSG)
+                except Exception as e:
+                    logging.getLogger("ispyb_client").exception(e)
             else:
                 logging.getLogger("ispyb_client").error(
                     "Error in update_data_collection: "
@@ -2230,7 +2232,10 @@ class ISPyBValueFactory:
 
         try:
             data_collection.dataCollectionId = int(mx_collect_dict["collection_id"])
+            logging.getLogger("HWR").debug(mx_collect_dict["collection_id"])
         except KeyError:
+            pass
+        except Exception as e:
             pass
 
         try:
