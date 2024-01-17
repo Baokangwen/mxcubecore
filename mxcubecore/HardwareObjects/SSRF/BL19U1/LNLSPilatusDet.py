@@ -609,6 +609,7 @@ class LNLSPilatusDet(AbstractDetector):
         try:
             logging.getLogger("HWR").info('=============Start set_detector_filenames')
             # C:\haicoder\haicoder.txt -> ('C:\\haicoder\\haicoder', 'txt')
+            logging.getLogger("HWR").info('=============filename: %s' % filename)
             prefix, suffix = os.path.splitext(os.path.basename(filename))
             prefix = "_".join(prefix.split("_")[:-1]) + "_"
             dirname = os.path.dirname(filename)
