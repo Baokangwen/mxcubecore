@@ -818,77 +818,139 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         HWR.beamline.diffractometer.wait_ready()
 
 
-        # if self.current_dc_parameters.get("experiment_type") != "Mesh":
-        #     try:
-        #         logging.getLogger("HWR").info(
-        #             "[BL19U1COLLECT] Going to generate XDS input files"
-        #         )
-        #         # generate XDS.INP only in raw/process
-        #         data_path = self.current_dc_parameters["fileinfo"]["filename"]
-        #         logging.getLogger("HWR").info(
-        #             "[BL19U1COLLECT] DATA file: %s" % data_path
-        #         )
-        #         logging.getLogger("HWR").info(
-        #             "[BL19U1MCOLLECT] XDS file: %s"
-        #             % self.current_dc_parameters["xds_dir"]
-        #         )
-        #         # Wait for the master file
-        #         self.wait_for_file_copied(data_path)
-        #         os.system(
-        #             "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp.sh %s &"
-        #             % (self.current_dc_parameters["xds_dir"], data_path)
-        #         )
-        #         logging.getLogger("HWR").info(
-        #             "[BL19U1COLLECT] AUTO file: %s"
-        #             % self.current_dc_parameters["auto_dir"]
-        #         )
-        #         os.system(
-        #             "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp_auto.sh %s &"
-        #             % (self.current_dc_parameters["auto_dir"], data_path)
-        #         )
-        #         if (
-        #             self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
-        #             and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
-        #             == 0
-        #             and self.current_dc_parameters["oscillation_sequence"][0][
-        #                 "number_of_images"
-        #             ]
-        #             >= self.NIMAGES_TRIGGER_AUTO_PROC
-        #         ):
-        #             self.trigger_auto_processing("after", self.current_dc_parameters, 0)
-        #     except Exception as ex:
-        #         logging.getLogger("HWR").error(
-        #             "[COLLECT] Error creating XDS files, %s" % ex
-        #         )
-        #
-        #     # we store the first and the last images, TODO: every 45 degree
-        #     logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
-        #     try:
-        #         self.store_image_in_lims(1)
-        #         # self.generate_and_copy_thumbnails(
-        #         #     self.current_dc_parameters["fileinfo"]["filename"], 1
-        #         # )
-        #     except Exception as ex:
-        #         print(ex)
-        #
-        #     last_frame = self.current_dc_parameters["oscillation_sequence"][0][
-        #         "number_of_images"
-        #     ]
-        #     if last_frame > 1:
-        #         logging.getLogger("HWR").info(
-        #             "Storing images in lims, frame number: %d" % last_frame
-        #         )
-        #         try:
-        #             self.store_image_in_lims(last_frame)
-        #             # self.generate_and_copy_thumbnails(
-        #             #     self.current_dc_parameters["fileinfo"]["filename"], last_frame
-        #             # )
-        #         except Exception as ex:
-        #             print(ex)
-        #
-        # if self.datacatalog_enabled:
-        #     self.store_datacollection_datacatalog()
+        if self.current_dc_parameters.get("experiment_type") != "Mesh":
+            try:
+                logging.getLogger("HWR").info(
+                    "[BL19U1COLLECT] Going to generate XDS input files"
+                )
+                # generate XDS.INP only in raw/process
+                data_path = self.current_dc_parameters["fileinfo"]["filename"]
+                logging.getLogger("HWR").info(
+                    "[BL19U1COLLECT] DATA file: %s" % data_path
+                )
+                logging.getLogger("HWR").info(
+                    "[BL19U1MCOLLECT] XDS file: %s"
+                    % self.current_dc_parameters["xds_dir"]
+                )
+                # Wait for the master file
+                self.wait_for_file_copied(data_path)
+                os.system(
+                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp.sh %s &"
+                    % (self.current_dc_parameters["xds_dir"], data_path)
+                )
+                logging.getLogger("HWR").info(
+                    "[BL19U1COLLECT] AUTO file: %s"
+                    % self.current_dc_parameters["auto_dir"]
+                )
+                os.system(
+                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp_auto.sh %s &"
+                    % (self.current_dc_parameters["auto_dir"], data_path)
+                )
+                if (
+                    self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
+                    and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
+                    == 0
+                    and self.current_dc_parameters["oscillation_sequence"][0][
+                        "number_of_images"
+                    ]
+                    >= self.NIMAGES_TRIGGER_AUTO_PROC
+                ):
+                    self.trigger_auto_processing("after", self.current_dc_parameters, 0)
+            except Exception as ex:
+                logging.getLogger("HWR").error(
+                    "[COLLECT] Error creating XDS files, %s" % ex
+                )
 
+            # we store the first and the last images, TODO: every 45 degree
+            logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
+            try:
+                self.store_image_in_lims(1)
+                # self.generate_and_copy_thumbnails(
+                #     self.current_dc_parameters["fileinfo"]["filename"], 1
+                # )
+            except Exception as ex:
+                logging.getLogger("HWR").error("Storing first images in lims, error: %s" % ex)
+
+            last_frame = self.current_dc_parameters["oscillation_sequence"][0][
+                "number_of_images"
+            ]
+            if last_frame > 1:
+                logging.getLogger("HWR").info(
+                    "Storing images in lims, frame number: %d" % last_frame
+                )
+                try:
+                    self.store_image_in_lims(last_frame)
+                    # self.generate_and_copy_thumbnails(
+                    #     self.current_dc_parameters["fileinfo"]["filename"], last_frame
+                    # )
+                except Exception as ex:
+                    logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
+
+        if self.datacatalog_enabled:
+            self.store_datacollection_datacatalog()
+
+
+    def _store_image_in_lims(self, frame_number, motor_position_id=None):
+        """
+        Descript. :
+        """
+        if HWR.beamline.lims:
+            file_location = self.current_dc_parameters["fileinfo"]["directory"]
+            image_file_template = self.current_dc_parameters["fileinfo"]["template"]
+            filename = image_file_template % frame_number
+            lims_image = {
+                "dataCollectionId": self.current_dc_parameters["collection_id"],
+                "fileName": filename,
+                "fileLocation": file_location,
+                "imageNumber": frame_number,
+                "measuredIntensity": HWR.beamline.flux.get_value(),
+                "synchrotronCurrent": self.get_machine_current(),
+                "machineMessage": self.get_machine_message(),
+                "temperature": self.get_cryo_temperature(),
+            }
+            archive_directory = self.current_dc_parameters["fileinfo"][
+                "archive_directory"
+            ]
+
+            if archive_directory:
+                jpeg_filename = (
+                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                )
+                thumb_filename = (
+                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                )
+                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
+                jpeg_thumbnail_file_template = os.path.join(
+                    archive_directory, thumb_filename
+                )
+                jpeg_full_path = jpeg_file_template % frame_number
+                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+                lims_image["jpegFileFullPath"] = jpeg_full_path
+                lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
+                lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
+            if motor_position_id:
+                lims_image["motorPositionId"] = motor_position_id
+            logging.getLogger("HWR").info(
+                "LIMS IMAGE: %s, %s, %s, %s"
+                % (
+                    jpeg_filename,
+                    thumb_filename,
+                    jpeg_full_path,
+                    jpeg_thumbnail_full_path,
+                )
+            )
+            try:
+                image_id = HWR.beamline.lims.store_image(lims_image)
+            except Exception as ex:
+                print(ex)
+            # temp fix for ispyb permission issues
+            try:
+                session_dir = os.path.join(archive_directory, "../../../")
+                os.system("chmod -R 777 %s" % (session_dir))
+            except Exception as ex:
+                print(ex)
+
+            return image_id
     def get_resolution_at_corner(self):
         print("Find good value for get_resolution_at_corner ")
         return HWR.beamline.resolution.get_value_at_corner()
@@ -1026,14 +1088,15 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             )
             try:
                 image_id = HWR.beamline.lims.store_image(lims_image)
+                logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
             except Exception as ex:
-                print(ex)
+                logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
             # temp fix for ispyb permission issues
             try:
                 session_dir = os.path.join(archive_directory, "../../../")
                 os.system("chmod -R 777 %s" % (session_dir))
             except Exception as ex:
-                print(ex)
+                logging.getLogger("HWR").error("LIMS IMAGE session_dir, error: %s" % ex)
 
             return image_id
 
