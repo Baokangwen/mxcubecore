@@ -944,8 +944,8 @@ class ISPyBClient(HardwareObject):
 
         return blSetupId
 
-    # @trace
-    @in_greenlet
+    @trace
+    # @in_greenlet
     def update_data_collection(self, mx_collection, wait=False):
         """
         Updates the datacollction mx_collection, this requires that the
@@ -968,9 +968,10 @@ class ISPyBClient(HardwareObject):
                     data_collection = ISPyBValueFactory().from_data_collect_parameters(
                         self._collection, mx_collection
                     )
-                    self._collection.service.storeOrUpdateDataCollection(
+                    collection_id = self._collection.service.storeOrUpdateDataCollection(
                         data_collection
                     )
+                    return collection_id
                 except WebFault:
                     logging.getLogger("ispyb_client").exception(
                         "ISPyBClient: exception in update_data_collection"
