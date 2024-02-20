@@ -865,9 +865,9 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
             try:
                 self.store_image_in_lims(1)
-                # self.generate_and_copy_thumbnails(
-                #     self.current_dc_parameters["fileinfo"]["filename"], 1
-                # )
+                self.generate_and_copy_thumbnails(
+                    self.current_dc_parameters["fileinfo"]["filename"], 1
+                )
             except Exception as ex:
                 logging.getLogger("HWR").error("Storing first images in lims, error: %s" % ex)
 
@@ -880,9 +880,9 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 )
                 try:
                     self.store_image_in_lims(last_frame)
-                    # self.generate_and_copy_thumbnails(
-                    #     self.current_dc_parameters["fileinfo"]["filename"], last_frame
-                    # )
+                    self.generate_and_copy_thumbnails(
+                        self.current_dc_parameters["fileinfo"]["filename"], last_frame
+                    )
                 except Exception as ex:
                     logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
 
