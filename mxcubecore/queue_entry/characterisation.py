@@ -147,6 +147,7 @@ class CharacterisationQueueEntry(BaseQueueEntry):
         self.get_view().setText(1, "Characterising")
         log.info("Characterising, please wait ...")
         char = self.get_data_model()
+        print("==== Characterising", char)
         reference_image_collection = char.reference_image_collection
         characterisation_parameters = char.characterisation_parameters
 
