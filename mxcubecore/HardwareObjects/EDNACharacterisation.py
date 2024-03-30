@@ -466,16 +466,21 @@ class EDNACharacterisation(AbstractCharacterisation):
         # something more clever might be done to give a more significant
         # name, if there is no dc id.
         try:
-            dc_id = edna_input.getDataCollectionId().getValue()
+            # dc_id = edna_input.getDataCollectionId().getValue()
+            dc_id = edna_input["dataCollectionId"]
         except Exception:
             dc_id = id(edna_input)
 
         token = self.generate_new_token()
-        edna_input.token = XSDataString(token)
+        # edna_input.token = XSDataString(token)
+        key_path = ['token']
+        self.update_json_data(edna_input, key_path, token)
 
         if hasattr(edna_input, "process_directory"):
-            edna_input_file = os.path.join(path, "EDNAInput_%s.xml" % dc_id)
-            edna_input.exportToFile(edna_input_file)
+            # edna_input_file = os.path.join(path, "EDNAInput_%s.xml" % dc_id)
+            edna_input_file = os.path.join(path, "EDNAInput_%s.json" % dc_id)
+            # edna_input.exportToFile(edna_input_file)
+            self.save_json_file(edna_input_file, edna_input)
             edna_results_file = os.path.join(path, "EDNAOutput_%s.xml" % dc_id)
 
             if not os.path.isdir(path):
