@@ -704,7 +704,8 @@ class EDNACharacterisation(AbstractCharacterisation):
             parameters.
         """
         # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
-        edna_input = self.read_json_file(self.edna_default_input)
+        # edna_input = self.read_json_file(self.edna_default_input)
+        edna_input = json.loads(self.edna_default_input)
 
         # diff_plan = edna_input.getDiffractionPlan()
         # edna_sample = edna_input.getSample()
