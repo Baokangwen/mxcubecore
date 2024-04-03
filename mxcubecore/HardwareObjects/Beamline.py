@@ -832,7 +832,7 @@ class Beamline(ConfiguredObject):
         return path_template
 
     def get_default_characterisation_parameters(self):
-        return self.characterisation.get_default_characterisation_parameters()
+        return self.characterisation.get_default_characterisation_parameters_json()
 
     def force_emit_signals(self):
         for role in self.all_roles:

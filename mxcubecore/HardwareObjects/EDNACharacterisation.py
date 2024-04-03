@@ -634,9 +634,10 @@ class EDNACharacterisation(AbstractCharacterisation):
             (queue_model_objects.CharacterisationsParameters) object with default
             parameters.
         """
-        edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
-        diff_plan = edna_input.getDiffractionPlan()
+        # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
+        edna_input = self.read_json_file(self.edna_default_input)
 
+        diff_plan = edna_input.getDiffractionPlan()
         edna_sample = edna_input.getSample()
         char_params = qmo.CharacterisationParameters()
         char_params.experiment_type = qme.EXPERIMENT_TYPE.OSC
@@ -650,6 +651,10 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         char_params.use_aimed_multiplicity = False
         try:
+            char_params.aimed_i_sigma = (
+                diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
+            )
+            char_params.aimed_completness = diff_plan.getAimedCompleteness().getValue()
             char_params.aimed_i_sigma = (
                 diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
             )
@@ -692,6 +697,79 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         return char_params
 
+    def get_default_characterisation_parameters_json(self):
+        """
+        Returns:
+            (queue_model_objects.CharacterisationsParameters) object with default
+            parameters.
+        """
+        # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
+        edna_input = self.read_json_file(self.edna_default_input)
+
+        # diff_plan = edna_input.getDiffractionPlan()
+        # edna_sample = edna_input.getSample()
+        char_params = qmo.CharacterisationParameters()
+        char_params.experiment_type = qme.EXPERIMENT_TYPE.OSC
+
+        # Optimisation parameters
+        char_params.use_aimed_resolution = False
+        try:
+            # char_params.aimed_resolution = diff_plan.getAimedResolution().getValue()
+            char_params.aimed_resolution = edna_input["diffractionPlan"]["aimedResolution"]
+        except Exception:
+            char_params.aimed_resolution = None
+
+        char_params.use_aimed_multiplicity = False
+        try:
+            # char_params.aimed_i_sigma = (
+            #     diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
+            # )
+            # char_params.aimed_completness = diff_plan.getAimedCompleteness().getValue()
+            char_params.aimed_i_sigma = (
+                edna_input["diffractionPlan"]["aimedIOverSigmaAtHighestResolution"]
+            )
+            char_params.aimed_completness =  edna_input["diffractionPlan"]["aimedCompleteness"]
+        except Exception:
+            char_params.aimed_i_sigma = None
+            char_params.aimed_completness = None
+
+        char_params.strategy_complexity = 0
+        char_params.induce_burn = False
+        char_params.use_permitted_rotation = False
+        char_params.permitted_phi_start = 0.0
+        char_params.permitted_phi_end = 360
+        char_params.low_res_pass_strat = False
+
+        # Crystal
+        # char_params.max_crystal_vdim = edna_sample.getSize().getY().getValue()
+        # char_params.min_crystal_vdim = edna_sample.getSize().getZ().getValue()
+        char_params.max_crystal_vdim = edna_input["sample"]["size"]["y"]
+        char_params.min_crystal_vdim = edna_input["sample"]["size"]["z"]
+
+        char_params.max_crystal_vphi = 90
+        char_params.min_crystal_vphi = 0.0
+        char_params.space_group = ""
+
+        # Characterisation type
+        char_params.use_min_dose = True
+        char_params.use_min_time = False
+        char_params.min_dose = 30.0
+        char_params.min_time = 0.0
+        char_params.account_rad_damage = True
+        char_params.auto_res = True
+        char_params.opt_sad = False
+        char_params.sad_res = 0.5
+        char_params.determine_rad_params = False
+        char_params.burn_osc_start = 0.0
+        char_params.burn_osc_interval = 3
+
+        # Radiation damage model
+        # char_params.rad_suscept = edna_sample.getSusceptibility().getValue()
+        char_params.rad_suscept = edna_input["sample"]["susceptibility"]
+        char_params.beta = 1
+        char_params.gamma = 0.06
+
+        return char_params
     def generate_new_token(self):
         # See: https://wyattbaldwin.com/2014/01/09/generating-random-tokens-in-python/
         token = binascii.hexlify(os.urandom(5)).decode("utf-8")
