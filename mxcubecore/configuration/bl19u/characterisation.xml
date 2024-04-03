@@ -1,4 +1,4 @@
 <object class="EDNACharacterisation">
-  <edna_command>/home/mxcube19u1/mxcube/edna_script.py</edna_command>
-  <edna_default_file>/bl19u/edna_defaults.json</edna_default_file>
+  <edna_command>/home/mxcube19u1/mxcube/mxcubecore/edna_script.sh</edna_command>
+  <edna_default_file>/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/edna_defaults.json</edna_default_file>
 </object>
