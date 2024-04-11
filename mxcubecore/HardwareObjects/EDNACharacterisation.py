@@ -246,7 +246,8 @@ class EDNACharacterisation(AbstractCharacterisation):
     def input_from_params_json(self, data_collection, char_params):
         # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
 
-        edna_input = self.read_json_file(self.edna_default_input)
+        # edna_input = self.read_json_file(self.edna_default_input)
+        edna_input = json.loads(self.edna_default_input)
 
         if data_collection.id:
             # edna_input.setDataCollectionId(XSDataInteger(data_collection.id))
