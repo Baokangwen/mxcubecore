@@ -283,7 +283,7 @@ class Session(HardwareObject):
         prefix = proposal
 
         if sample_data_node:
-            print("sample_prefix0:", sample_prefix)
+            # print("sample_prefix0:", sample_prefix)
 
             protein_acronym = sample_data_node.crystals[0].protein_acronym
             name = sample_data_node.name
