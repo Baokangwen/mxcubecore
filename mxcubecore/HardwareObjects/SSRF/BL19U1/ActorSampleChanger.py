@@ -161,15 +161,17 @@ class ActorSampleChanger(AbstractSampleChanger.SampleChanger):
 
     @if_ErrorCode
     def _do_mount(self,magazine,position):
-        return self._cmdMount(magazine=magazine,position=position)
+        # return self._cmdMount(magazine=magazine,position=position)
+        return True
     @if_ErrorCode
     def _do_unmount(self,magazine,position):
-        return self._cmdUnMount(magazine=magazine,position=position)
+        # return self._cmdUnMount(magazine=magazine,position=position)
+        return True
     @if_ErrorCode
     def _do_exchange(self,oldMagazine,oldPosition,newMagazine,newPosition):
         print("oldMagazine,oldPosition,NewMagazine,NewPosition:",oldMagazine,oldPosition,newMagazine,newPosition)
-        return self._cmdExchange(oldMagazine=oldMagazine,oldPosition=oldPosition,newMagazine=newMagazine,newPosition=newPosition)
-
+        # return self._cmdExchange(oldMagazine=oldMagazine,oldPosition=oldPosition,newMagazine=newMagazine,newPosition=newPosition)
+        return True
     @if_ErrorCode
     def _do_getStatus(self):
         return self._cmdGetStatus()
