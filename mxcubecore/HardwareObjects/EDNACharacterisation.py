@@ -458,6 +458,7 @@ class EDNACharacterisation(AbstractCharacterisation):
         Returns:
             (str) The Characterisation result
         """
+        print("edna input: ", edna_input)
         self.processing_done_event.set()
         self.prepare_input(edna_input)
         # path = edna_input.process_directory
@@ -477,7 +478,8 @@ class EDNACharacterisation(AbstractCharacterisation):
         key_path = ['token']
         self.update_json_data(edna_input, key_path, token)
 
-        if hasattr(edna_input, "process_directory"):
+        # if hasattr(edna_input, "processDirectory"):
+        if "processDirectory" in edna_input:
             # edna_input_file = os.path.join(path, "EDNAInput_%s.xml" % dc_id)
             edna_input_file = os.path.join(path, "EDNAInput_%s.json" % dc_id)
             # edna_input.exportToFile(edna_input_file)
