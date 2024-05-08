@@ -72,7 +72,7 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         diff_plan.setStrategyOption(XSDataString(new_strategy_option))
 
-    def _run_edna(self, input_file, results_file, process_directory):
+    def _run_edna(self, input_file, results_file, process_directory, task_name):
         """Starts EDNA"""
         msg = "Starting EDNA characterisation using xml file %s" % input_file
         logging.getLogger("queue_exec").info(msg)
@@ -430,10 +430,13 @@ class EDNACharacterisation(AbstractCharacterisation):
         # data_set = XSDataMXCuBEDataSet()
         acquisition_parameters = data_collection.acquisitions[0].acquisition_parameters
         path_template = data_collection.acquisitions[0].path_template
+        # path_str = os.path.join(
+        #     path_template.directory, path_template.get_image_file_name()
+        # )
+        # use data saving directory
         path_str = os.path.join(
-            path_template.directory, path_template.get_image_file_name()
+            HWR.beamline.detector.saving_directory, path_template.get_image_file_name()
         )
-
         # for img_num in range(int(acquisition_parameters.num_images)):
         #     image_file = XSDataFile()
         #     path = XSDataString()
@@ -463,6 +466,7 @@ class EDNACharacterisation(AbstractCharacterisation):
         self.prepare_input(edna_input)
         # path = edna_input.process_directory
         path = edna_input['processDirectory']
+
         # if there is no data collection id, the id will be a random number
         # this is to give a unique number to the EDNA input and result files;
         # something more clever might be done to give a more significant
@@ -490,8 +494,8 @@ class EDNACharacterisation(AbstractCharacterisation):
                 os.makedirs(path)
         else:
             raise RuntimeError("No process directory specified in edna_input")
-
-        self.result = self._run_edna(edna_input_file, edna_results_file, path)
+        task_name = "Characterisation"
+        self.result = self._run_edna(edna_input_file, edna_results_file, path, task_name)
 
         self.processing_done_event.clear()
         return self.result
