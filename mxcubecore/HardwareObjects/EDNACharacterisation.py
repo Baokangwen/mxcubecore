@@ -77,8 +77,8 @@ class EDNACharacterisation(AbstractCharacterisation):
         msg = "Starting EDNA characterisation using xml file %s" % input_file
         logging.getLogger("queue_exec").info(msg)
 
-        args = (self.start_edna_command, input_file, results_file, process_directory)
-        subprocess.call("%s %s %s %s" % args, shell=True)
+        args = (self.start_edna_command, input_file, results_file, process_directory, "Characterisation")
+        subprocess.call("%s %s %s %s %s" % args, shell=True)
 
         self.result = None
         if os.path.exists(results_file):
