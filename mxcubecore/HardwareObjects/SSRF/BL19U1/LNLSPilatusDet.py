@@ -617,6 +617,7 @@ class LNLSPilatusDet(AbstractDetector):
                 dirname = dirname[len(os.path.sep) :]
 
             saving_directory = os.path.join(self.getProperty("buffer"), dirname)
+            self.saving_directory = saving_directory
 
             logging.getLogger("HWR").info('=============Start subprocess')
             logging.getLogger("HWR").info( "ssh %s@%s mkdir --parents %s"  % (self.getProperty("user"), self.getProperty("control"), saving_directory))
