@@ -787,7 +787,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         HWR.beamline.detector.emit_status()
         logging.getLogger("HWR").info('======== EMIT collectReady msg ')
         detCover = DetCover()
-        # detCover.closeDetCover()
+        detCover.closeDetCover()
         self.emit("progressStop", ())
         self._collecting = None
         self.ready_event.set()
@@ -1230,7 +1230,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             logging.getLogger("HWR").info("Openning the detector cover.")
             #self.detector_cover_open.set_value(1)
             detCover = DetCover()
-            # detCover.openDetCover()
+            detCover.openDetCover()
 
             if self.detector_cover_hwobj is not None:
                 self.detector_cover_hwobj.openShutter()
