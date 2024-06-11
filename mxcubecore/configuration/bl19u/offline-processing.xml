@@ -1,0 +1,16 @@
+<object class="mxcubecore.HardwareObjects.SSRF.BL19U1.BL19U1OfflineProcessing">
+ <programs>
+    <!--program>
+      <executable>ssh bcrunch srun /mx-beta/edna-cluster-scripts/edna_proc.csh</executable>
+      <event>after</event>
+    </program-->
+    <program>
+      <executable>ssh bcrunch srun /mx-beta/edna-cluster-scripts/edna_autoPROC.csh</executable>
+      <event>after</event>
+    </program>
+    <!--program>
+      <executable>ssh bcrunch srun /mx-beta/edna-cluster-scripts/edna_thumbnails.csh</executable>
+      <event>image</event>
+    </program-->
+  </programs>
+</object>

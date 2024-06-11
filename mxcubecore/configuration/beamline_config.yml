@@ -64,6 +64,7 @@ _objects:
     # Analysis:
     #- offline_processing: auto_processing.xml
     #- online_processing: parallel_processing.xml
+    - offline_processing: bl19u/offline-processing.xml
     - characterisation: bl19u/characterisation.xml
 
     # - beam_realign: # Skipped - optional
