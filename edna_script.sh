@@ -10,7 +10,7 @@ echo "#!/bin/bash" >> $ednaStartScriptFileName
 echo "source /home/demo/anaconda3/bin/activate edna2" >> $ednaStartScriptFileName
 echo "/opt/edna2/bin/run_edna2.py --taskName $4 --inDataFile $1 --outDataFile $2" >> $ednaStartScriptFileName
 chmod a+x $ednaStartScriptFileName
-ednanormalhost=bl19uedna
+ednanormalhost=edna
 
 ssh demo@$ednanormalhost $ednaStartScriptFileName
 
