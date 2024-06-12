@@ -5,7 +5,7 @@
       <event>after</event>
     </program-->
     <program>
-      <executable>ssh bcrunch srun /mx-beta/edna-cluster-scripts/edna_autoPROC.csh</executable>
+      <executable>ssh /home/mxcube19u1/mxcube/mxcubecore/edna_autoproc_script.sh</executable>
       <event>after</event>
     </program>
     <!--program>
