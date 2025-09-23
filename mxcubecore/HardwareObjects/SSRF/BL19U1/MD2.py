@@ -217,6 +217,7 @@ class MD2(Microdiff.Microdiff):
         print("wait time after scan end: ",  time.time()-end_scan_time) #这个时间才是应该有的曝光时间
 
     def oscilScan4d(self, start, end, exptime, motors_pos, wait=False):
+        # 螺旋扫描
         if self.in_plate_mode():
             scan_speed = math.fabs(end - start) / exptime
             low_lim, hi_lim = map(float, self.scanLimits(scan_speed))
