@@ -970,7 +970,6 @@ class FlexMaint(Equipment):
         #     self._do_disable_regulation()
         if cmd_name == "openlid1":
             self._do_lid1_state(True)
-
         if cmd_name == "closelid1":
             self._do_lid1_state(False)
         if cmd_name == "clear_memory":
