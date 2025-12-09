@@ -488,23 +488,93 @@ class MD2(Microdiff.Microdiff):
 
 
 
-    def get_centred_point_from_coord(self, x, y, return_by_names=None):
-        # 20240312
-        # 此函数根据 mesh scan画的正方形的点坐标生成对应移动 md2 的参数
-        # 初步判断，mesh scan时，会传送左上和右下的坐标到此函数，其中左上的坐标和gotobeam函数所获得的坐标是一致的，右下不是
+    # def get_centred_point_from_coord(self, x, y, return_by_names=None):
+    #     # 20240312
+    #     # 此函数根据 mesh scan画的正方形的点坐标生成对应移动 md2 的参数
+    #     # 初步判断，mesh scan时，会传送左上和右下的坐标到此函数，其中左上的坐标和gotobeam函数所获得的坐标是一致的，右下不是
+    #     # 20240319
+    #     # 此函数作用是
+    #     # 根据坐标点求出对应电机位置：
+    #     # "phi": round(self.centringPhi.get_value()),
+    #     # "phiz": round(phiz, 4),
+    #     # "phiy": round(phiy, 4),
+    #     # "sampx": round(sampx, 4),
+    #     # "sampy": round(sampy, 4),
+    #     # 其中phi ， phiz 不变, 需要知道sampx 和 sampy 和 phiy 的位置
+    #     # phiy的位置可以根据move_to_beam的代码得知，
+    #     # 但sampx与sampy的具体位置不知道，只能得到centring vertical的值,因此需要先通过move_to_beam实际移动过去，再分别读取
+    #     # sampx 和 sampy
+    #     import pdb
+    #     pdb.set_trace()
+    #     logging.getLogger("HWR.MX3").info("get into get_centred_point_from_coord in MD2")
+    #     self.pixelsPerMmY, self.pixelsPerMmZ = self.getCalibrationData(
+    #         self.zoomMotor.get_value()
+    #     )
+    #     if None in (self.pixelsPerMmY, self.pixelsPerMmZ):
+    #         return 0, 0
+    #     self.log.debug(
+    #         "the pixelsPerMmY: %d, Z: %d. the selected x: %d, y: %d. " % (self.pixelsPerMmY, self.pixelsPerMmZ, x, y))
 
-        # 20240319
-        # 此函数作用是
-        # 根据坐标点求出对应电机位置：
-        # "phi": round(self.centringPhi.get_value()),
-        # "phiz": round(phiz, 4),
-        # "phiy": round(phiy, 4),
-        # "sampx": round(sampx, 4),
-        # "sampy": round(sampy, 4),
-        # 其中phi ， phiz 不变, 需要知道sampx 和 sampy 和 phiy 的位置
-        # phiy的位置可以根据move_to_beam的代码得知，
-        # 但sampx与sampy的具体位置不知道，只能得到centring vertical的值,因此需要先通过move_to_beam实际移动过去，再分别读取
-        # sampx 和 sampy
+    #     beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+    #     self.log.debug("the beam_pos_x: %d, y: %d. " % (beam_pos_x, beam_pos_y))
+
+    #     dx = (x - beam_pos_x) / (self.pixelsPerMmY)
+    #     dy = (y - beam_pos_y) / (self.pixelsPerMmZ)
+
+    #     # from move to beam
+    #     sampeVertical = self.centringVertical.get_value()
+    #     phiy = self.centringPhiy.get_value()
+
+    #     # 改变前先记录原始位置
+    #     old_sampeVertical = sampeVertical
+    #     old_phiy = phiy
+    #     sampeVertical = sampeVertical + dy
+    #     phiy = phiy - dx
+
+    #     # 让md2移动到目标点来获取对应的 samp-x 与 samp-y 的值
+    #     self.centringVertical.set_value(sampeVertical)  # 此函数控制md2上下移动，会移动mxcube界面Samp-X 和 Samp-Y电机
+    #     self.centringPhiy.set_value(phiy)  # 此函数控制md2左右移动，会移动mxcube界面上的phiy电机
+
+    #     # 等待centringVertical重新变回ready
+    #     # if self.centring_table_vertical_state.get_value() == "Ready":
+    #     self.centringVertical.wait_move()
+    #     self.centringPhiy.wait_move()
+
+    #     phiz = self.centringPhiz.direction * self.centringPhiz.get_value()
+
+    #     # sampx = self.centringSamplex.direction * self.centringSamplex.get_value()
+    #     # sampy = self.centringSampley.direction * self.centringSampley.get_value()
+    #     sampx = -self.centringSamplex.direction * self.centringSamplex.get_value()
+    #     sampy = self.centringSampley.direction * self.centringSampley.get_value()
+
+    #     # 移动完之后再移动回来，否则影响整体坐标系的位置
+    #     self.centringVertical.set_value(old_sampeVertical)
+    #     self.centringPhiy.set_value(old_phiy)
+    #     self.centringVertical.wait_move()
+    #     self.centringPhiy.wait_move()
+
+
+    #     dict = {
+    #         "phi": round(self.centringPhi.get_value()),
+    #         "phiz": round(phiz, 4),
+    #         "phiy": round(phiy, 4),
+    #         "sampx": round(sampx, 4),
+    #         "sampy": round(sampy, 4),
+    #     }
+
+    #     logging.getLogger("HWR").debug("MD2: centring point from coord (%d,%d) -> %s" %(x, y, str(dict)))
+
+    #     return dict
+
+    def get_centred_point_from_coord(self, x, y, return_by_names=None):
+        """
+        MD2S 坐标转换函数 - 最终线性解耦模型
+        基于用户测试结果：
+        - 水平平移(dx)映射到Alignment(AY)轴.
+        - 垂直平移(dy)映射到centringY轴.
+        - centringX为对焦(Z)轴，保持当前值.
+        """
+
         logging.getLogger("HWR.MX3").info("get into get_centred_point_from_coord in MD2")
         self.pixelsPerMmY, self.pixelsPerMmZ = self.getCalibrationData(
             self.zoomMotor.get_value()
@@ -514,90 +584,34 @@ class MD2(Microdiff.Microdiff):
         self.log.debug(
             "the pixelsPerMmY: %d, Z: %d. the selected x: %d, y: %d. " % (self.pixelsPerMmY, self.pixelsPerMmZ, x, y))
 
-
-
         beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
         self.log.debug("the beam_pos_x: %d, y: %d. " % (beam_pos_x, beam_pos_y))
 
         dx = (x - beam_pos_x) / (self.pixelsPerMmY)
         dy = (y - beam_pos_y) / (self.pixelsPerMmZ)
 
-        # from move to beam
-        sampeVertical = self.centringVertical.get_value()
-        phiy = self.centringPhiy.get_value()
+        phiy_value = self.centringPhiy.get_value() #AlignmentY左右移动，左-右+
+        phiz_value = self.centringPhiz.get_value() #AlignmentZ代替centringY上下移动，下-上+
 
-        # 改变前先记录原始位置
-        old_sampeVertical = sampeVertical
-        old_phiy = phiy
-        sampeVertical = sampeVertical + dy
-        phiy = phiy - dx
+        phiy = phiy_value - (self.centringPhiy.direction * dx)
+        phiz = phiz_value + (self.centringPhiz.direction * dy)
 
-        # 让md2移动到目标点来获取对应的 samp-x 与 samp-y 的值
-        self.centringVertical.set_value(sampeVertical)  # 此函数控制md2上下移动，会移动mxcube界面Samp-X 和 Samp-Y电机
-        self.centringPhiy.set_value(phiy)  # 此函数控制md2左右移动，会移动mxcube界面上的phiy电机
+        # phiy = -phiy
 
-        # 等待centringVertical重新变回ready
-        # if self.centring_table_vertical_state.get_value() == "Ready":
-        self.centringVertical.wait_move()
-        self.centringPhiy.wait_move()
-
-
-
-
-        phiz = self.centringPhiz.direction * self.centringPhiz.get_value()
-
-        # sampx = self.centringSamplex.direction * self.centringSamplex.get_value()
-        # sampy = self.centringSampley.direction * self.centringSampley.get_value()
         sampx = -self.centringSamplex.direction * self.centringSamplex.get_value()
         sampy = self.centringSampley.direction * self.centringSampley.get_value()
-
-        # 按照源代码尝试解决sampx 与sampy问题：
-        # 尝试的不太行
-        # sampx = self.centringSamplex.direction * self.centringSamplex.get_value()
-        # sampy = self.centringSampley.direction * self.centringSampley.get_value()
-        # phi_angle = math.radians(
-        #     self.centringPhi.direction * self.centringPhi.get_value()
-        # )
-        # rotMatrix = numpy.matrix(
-        #     [
-        #         [math.cos(phi_angle), -math.sin(phi_angle)],
-        #         [math.sin(phi_angle), math.cos(phi_angle)],
-        #     ]
-        # )
-        # invRotMatrix = numpy.array(rotMatrix.I)
-        # dsampx, dsampy = numpy.dot(numpy.array([0, dx]), invRotMatrix)
-        # chi_angle = math.radians(-self.chiAngle)
-        # chiRot = numpy.matrix(
-        #     [
-        #         [math.cos(chi_angle), -math.sin(chi_angle)],
-        #         [math.sin(chi_angle), math.cos(chi_angle)],
-        #     ]
-        # )
-        # sx, sy = numpy.dot(numpy.array([dsampx, dsampy]), numpy.array(chiRot))
-        # sampx = sampx + sx
-        # sampy = sampy + sy
-
-        # 移动完之后再移动回来，否则影响整体坐标系的位置
-        self.centringVertical.set_value(old_sampeVertical)
-        self.centringPhiy.set_value(old_phiy)
-        self.centringVertical.wait_move()
-        self.centringPhiy.wait_move()
-
-
+        # import pdb
+        # pdb.set_trace()
         dict = {
             "phi": round(self.centringPhi.get_value()),
-            "phiz": round(phiz, 4),
-            "phiy": round(phiy, 4),
+            "phiz": round(phiz, 4), #centringY上下移动，下-上+
+            "phiy": round(phiy, 4), #AlignmentY左右移动，左-右+
             "sampx": round(sampx, 4),
             "sampy": round(sampy, 4),
         }
-
         logging.getLogger("HWR").debug("MD2: centring point from coord (%d,%d) -> %s" %(x, y, str(dict)))
-
         return dict
-
-
-
+    
     # Override using value from Camera device instead than from exporter MD2 server
     def getCalibrationData(self, offset):
         #return self.zoomMotor.get_pixels_per_mm()
