@@ -339,7 +339,7 @@ class MD2(Microdiff.Microdiff):
         mesh_total_nb_frames,
         mesh_center,
         mesh_range,
-        mesh_center_topRightPoint_phiy =None ,
+        # mesh_center_topRightPoint_phiy =None ,
         wait=False,
     ):
 
@@ -385,7 +385,8 @@ class MD2(Microdiff.Microdiff):
         params += "%0.3f\t" % (mesh_range["vertical_range"] / 1000.0)
         params += "%0.3f\t" % start
         # params += "%0.3f\t" % positions["phiy"]
-        params += "%0.3f\t" % mesh_center_topRightPoint_phiy    #改
+        # params += "%0.3f\t" % mesh_center_topRightPoint_phiy    #改
+        params += "%0.3f\t" % positions["phiy"]
         params += "%0.3f\t" % (positions["phiz"])
         params += "%0.3f\t" % positions["sampx"]
         params += "%0.3f\t" % positions["sampy"]
@@ -611,12 +612,13 @@ class MD2(Microdiff.Microdiff):
         }
         logging.getLogger("HWR").debug("MD2: centring point from coord (%d,%d) -> %s" %(x, y, str(dict)))
         return dict
-    
+
     # Override using value from Camera device instead than from exporter MD2 server
     def getCalibrationData(self, offset):
         #return self.zoomMotor.get_pixels_per_mm()
         (x, y) = (1.0 / self.x_calib.get_value(), 1.0 / self.y_calib.get_value())
         # print("pixelsPerMmY: %d pixelsPerMmZ: %d" % (x, y))
+        # return (x/2, y/2)
         return (x/2, y/2)
 
 

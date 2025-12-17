@@ -189,15 +189,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
     # ---------------------------------------------------------
     # refactor do_collect
     def do_collect(self, owner):
-        # ============== [DNA 验证] ==============
-        import sys, inspect
-        print("\n\n")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("!!! I AM RUNNING FROM: ", __file__)  # 打印当前文件路径
-        print("!!! REAL CLASS LOADED FROM: ", inspect.getfile(self.__class__)) # 打印类实际加载路径
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("\n\n")
-        # ========================================
         """
         Actual collect sequence
         似乎在收集时，这个py文件会先进入此函数
@@ -830,10 +821,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         return self.current_dc_parameters["shape"]
 
     def oscil(self, start, end, exptime, npass, wait=True):
-        # ！！！加在函数第一行！！！
-        logging.getLogger("HWR").info("!!!!!! I AM THE NEW CODE !!!!!!") 
-        print("!!!!!! I AM THE NEW CODE !!!!!!")
-
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         msg = (
             "[COLLECT] Oscillation requested oscillation_parameters: %s"
@@ -874,75 +861,15 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             self.width = "cell_width"
             range_x = shape.get("num_cols") * shape.get(self.width) / 1000.0
             range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
-        #     print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
-        #     while(HWR.beamline.diffractometer.get_state() != "Ready"):
-        #         time.sleep(0.1)
-        #     print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
-        #     print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
-        #     self.log.debug("self.mesh_range in oscil() of BL19U!Collect.py, horizontal_range: %s, vertical_range: %s" %(self.mesh_range['horizontal_range'],self.mesh_range['vertical_range']))
-        #     self.log.debug("HWR.beamline.sample_view.shapes[self.shape].cp_list[1].phiy: %f. " %(HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy))
-        #     mesh_center_topRightPoint_phiy = HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy
-        #     HWR.beamline.diffractometer.oscilScanMesh(
-        #         start,
-        #         end,
-        #         exptime,
-        #         latency_time,
-        #         self.mesh_num_lines,
-        #         self.mesh_total_nb_frames,
-        #         self.mesh_center,
-        #         self.mesh_range,
-        #         mesh_center_topRightPoint_phiy,
-        #         wait=True,
-        #     )
-        #     # 添加结束
-        # else:
-        #     print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
-        #     HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
+            
             print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
             while(HWR.beamline.diffractometer.get_state() != "Ready"):
                 time.sleep(0.1)
-
-            try:
-                logging.getLogger("HWR").info("[RasterFix] Preparing scan coordinates...")
-                
-                # 1. 备份原始坐标 (这个坐标其实就是角点/Start Point)
-                import copy
-                real_center = copy.deepcopy(self.mesh_center)
-                
-                # 2. 获取 Start 值 (兼容 Object 和 Dict)
-                if isinstance(self.mesh_center, dict):
-                    start_phiy = self.mesh_center.get('phiy', 0)
-                    start_phiz = self.mesh_center.get('phiz', 0)
-                else:
-                    start_phiy = getattr(self.mesh_center, 'phiy', 0)
-                    start_phiz = getattr(self.mesh_center, 'phiz', 0)
-
-                # ========================================================
-                # [关键修改] 不再偏移！不再计算几何中心！
-                # 我们认为 start_phiy 就是扫描的起始点
-                # ========================================================
-                center_phiy = start_phiy
-                center_phiz = start_phiz 
-
-                # 6. 赋值回 real_center
-                if isinstance(real_center, dict):
-                    real_center['phiy'] = center_phiy
-                    real_center['phiz'] = center_phiz
-                else:
-                    real_center.phiy = center_phiy
-                    real_center.phiz = center_phiz
-                
-                # 赋值生效
-                self.mesh_center = real_center
-                
-                logging.getLogger("HWR").info(f"[RasterFix] Target Start Point: Phiy={center_phiy:.4f}, Phiz={center_phiz:.4f}")
-
-            except Exception as e:
-                logging.getLogger("HWR").error(f"[RasterFix] CRITICAL ERROR: {e}")
             print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
             print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
-
-            # 注意：请确保这里调用的是标准的 oscilScanMesh，不要有多余的参数！
+            self.log.debug("self.mesh_range in oscil() of BL19U!Collect.py, horizontal_range: %s, vertical_range: %s" %(self.mesh_range['horizontal_range'],self.mesh_range['vertical_range']))
+            self.log.debug("HWR.beamline.sample_view.shapes[self.shape].cp_list[1].phiy: %f. " %(HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy))
+            mesh_center_topRightPoint_phiy = HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy
             HWR.beamline.diffractometer.oscilScanMesh(
                 start,
                 end,
@@ -952,9 +879,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 self.mesh_total_nb_frames,
                 self.mesh_center,
                 self.mesh_range,
+                mesh_center_topRightPoint_phiy,
                 wait=True,
             )
-            
+            # 添加结束
+        else:
+            print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
+            HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
+
     def _update_task_progress(self):
         logging.getLogger("HWR").info("[COLLECT] update task progress launched")
         num_images = self.current_dc_parameters["oscillation_sequence"][0][
@@ -1001,17 +933,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 logging.getLogger("HWR").info(
                     "[COLLECT] Detector images saved: %s/%s" % (current_frame, num_images)
                 )
-            try:
-                # 检查 QueueManager 里是否还有正在运行的任务
-                # 如果列表为空，说明任务已经结束或崩溃，不能再发信号了
-                queue_entries = HWR.beamline.queue_manager._current_queue_entries
-                if not queue_entries:
-                    logging.getLogger("HWR").debug("[COLLECT] Progress thread aborting: No active queue entries.")
-                    break
-            except Exception:
-                # 如果访问 queue_manager 出错，也直接退出
-                break
-
             self.emit("collectImageTaken", current_frame)
             self.emit("progressStep", round(100 * current_frame / num_images, 1))
             step_count += 1
