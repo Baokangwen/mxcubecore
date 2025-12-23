@@ -1441,6 +1441,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
  #       )
         #return(1983,2534)
         return(127,144)
+        # return(450,335)
 
     def get_beam_shape(self):
         """
