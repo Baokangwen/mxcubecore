@@ -585,9 +585,11 @@ class MD2(Microdiff.Microdiff):
         self.log.debug(
             "the pixelsPerMmY: %d, Z: %d. the selected x: %d, y: %d. " % (self.pixelsPerMmY, self.pixelsPerMmZ, x, y))
 
-        beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+        # beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+        beam_pos_x = 340
+        beam_pos_y = 236
         self.log.debug("the beam_pos_x: %d, y: %d. " % (beam_pos_x, beam_pos_y))
-
+        
         dx = (x - beam_pos_x) / (self.pixelsPerMmY)
         dy = (y - beam_pos_y) / (self.pixelsPerMmZ)
 
@@ -627,56 +629,102 @@ class MD2(Microdiff.Microdiff):
         # print("pixelsPerMmY: %d pixelsPerMmZ: %d" % (x, y))
         return (x, y)
 
+    # def motor_positions_to_screen(self, centred_positions_dict):
+    #     # import pdb
+    #     # pdb.set_trace()
+    #     self.pixelsPerMmY, self.pixelsPerMmZ = self.getCalibrationData(
+    #         self.zoomMotor.get_value()
+    #     )
+
+    #     if None in (self.pixelsPerMmY, self.pixelsPerMmZ):
+    #         return 0, 0
+
+    #     phi_angle = math.radians(
+    #         self.centringPhi.direction * self.centringPhi.get_value()
+    #     )
+    #     sampx = self.centringSamplex.direction * (
+    #         centred_positions_dict["sampx"] - self.centringSamplex.get_value()
+    #     )
+    #     sampy = self.centringSampley.direction * (
+    #         centred_positions_dict["sampy"] - self.centringSampley.get_value()
+    #     )
+    #     phiy = self.centringPhiy.direction * (
+    #         centred_positions_dict["phiy"] - self.centringPhiy.get_value()
+    #     )
+    #     phiz = self.centringPhiz.direction * (
+    #         centred_positions_dict["phiz"] - self.centringPhiz.get_value()
+    #     )
+
+    #     rotMatrix = numpy.matrix(
+    #         [
+    #            [math.cos(phi_angle), -math.sin(phi_angle)],
+    #            [math.sin(phi_angle), math.cos(phi_angle)],
+    #         ]
+    #     )
+    #     invRotMatrix = numpy.array(rotMatrix.I)
+
+    #     dsx, dsy = numpy.dot(numpy.array([sampx, sampy]), invRotMatrix)
+
+    #     chi_angle = math.radians(self.chiAngle)
+    #     chiRot = numpy.matrix(
+    #         [
+    #             [math.cos(chi_angle), -math.sin(chi_angle)],
+    #             [math.sin(chi_angle), math.cos(chi_angle)],
+    #         ]
+    #     )
+    #     sx, sy = numpy.dot(numpy.array([0, dsy]), numpy.array(chiRot))
+
+    #     beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+    #     x = (sy + phiy) * self.pixelsPerMmY + beam_pos_x
+    #     y = phiz * self.pixelsPerMmZ + beam_pos_y
+
+    #     # print("MD2 centring point on screen = (%d,%d) from mpos = %s" % (int(x), int(y), str(centred_positions_dict)))
+
+    #     return float(x), float(y)
+
     def motor_positions_to_screen(self, centred_positions_dict):
-        # import pdb
-        # pdb.set_trace()
+        """
+        MD2S 坐标逆转换函数 - 最终线性解耦模型 (对应 get_centred_point_from_coord)
+        完全移除旋转矩阵，仅计算 Alignment 轴的线性偏差。
+        """
         self.pixelsPerMmY, self.pixelsPerMmZ = self.getCalibrationData(
             self.zoomMotor.get_value()
         )
-
+        # beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+        beam_pos_x = 340
+        beam_pos_y = 236
         if None in (self.pixelsPerMmY, self.pixelsPerMmZ):
             return 0, 0
+        # 2. 获取当前中心位置 (Current Center)
+        curr_phiy = self.centringPhiy.get_value()
+        curr_phiz = self.centringPhiz.get_value()
 
-        phi_angle = math.radians(
-            self.centringPhi.direction * self.centringPhi.get_value()
-        )
-        sampx = self.centringSamplex.direction * (
-            centred_positions_dict["sampx"] - self.centringSamplex.get_value()
-        )
-        sampy = self.centringSampley.direction * (
-            centred_positions_dict["sampy"] - self.centringSampley.get_value()
-        )
-        phiy = self.centringPhiy.direction * (
-            centred_positions_dict["phiy"] - self.centringPhiy.get_value()
-        )
-        phiz = self.centringPhiz.direction * (
-            centred_positions_dict["phiz"] - self.centringPhiz.get_value()
-        )
+        # 3. 获取网格点位置 (Target Grid Point)
+        grid_phiy = centred_positions_dict["phiy"]
+        grid_phiz = centred_positions_dict["phiz"]
 
-        rotMatrix = numpy.matrix(
-            [
-               [math.cos(phi_angle), -math.sin(phi_angle)],
-               [math.sin(phi_angle), math.cos(phi_angle)],
-            ]
-        )
-        invRotMatrix = numpy.array(rotMatrix.I)
+        # 4. 计算线性偏差 (逆运算)
+        # 对应: phiy = phiy_value - (direction * dx)
+        # 推导: dx = (phiy_value - phiy) / direction
+        # 注意：这里假设 direction 是 1 或 -1，做除法和乘法效果一样，但为了严谨用除法
+        
+        dir_y = self.centringPhiy.direction
+        if dir_y == 0: dir_y = 1 # 防止除以0
+        
+        dx = (curr_phiy - grid_phiy) / dir_y
 
-        dsx, dsy = numpy.dot(numpy.array([sampx, sampy]), invRotMatrix)
+        # 对应: phiz = phiz_value + (direction * dy)
+        # 推导: dy = (phiz - phiz_value) / direction
+        
+        dir_z = self.centringPhiz.direction
+        if dir_z == 0: dir_z = 1
+        
+        dy = (grid_phiz - curr_phiz) / dir_z
 
-        chi_angle = math.radians(self.chiAngle)
-        chiRot = numpy.matrix(
-            [
-                [math.cos(chi_angle), -math.sin(chi_angle)],
-                [math.sin(chi_angle), math.cos(chi_angle)],
-            ]
-        )
-        sx, sy = numpy.dot(numpy.array([0, dsy]), numpy.array(chiRot))
-
-        beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
-        x = (sy + phiy) * self.pixelsPerMmY + beam_pos_x
-        y = phiz * self.pixelsPerMmZ + beam_pos_y
-
-        # print("MD2 centring point on screen = (%d,%d) from mpos = %s" % (int(x), int(y), str(centred_positions_dict)))
+        # 5. 映射回屏幕像素
+        # 注意：pixelsPerMmY 对应水平，pixelsPerMmZ 对应垂直
+        x = beam_pos_x + (dx * self.pixelsPerMmY)
+        y = beam_pos_y + (dy * self.pixelsPerMmZ)
 
         return float(x), float(y)
 

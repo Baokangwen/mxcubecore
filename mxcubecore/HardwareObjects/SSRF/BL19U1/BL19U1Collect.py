@@ -171,6 +171,8 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         """
         Descript. : go to middle of grid shape
         """
+        import pdb
+        pdb.set_trace()
         logging.getLogger("HWR").info("[COLLECT] Moving to center position")
         shape = HWR.beamline.sample_view.get_selected_shapes()[0].as_dict()
         # screen_coord has top-left corner point and then center point
