@@ -1,0 +1,16 @@
+<device class="mxcubecore.HardwareObjects.SSRF.BL19U1.SimpleDozor">
+  <username>OnlineProcessing</username>
+
+  <executable>/usr/local/bin/dozor</executable>
+
+  <executable_mesh>/usr/local/bin/dozorm</executable_mesh>
+
+  <library_path>/home/dozor_test/dozor_example/xds-zcbf.so</library_path>
+
+  <results_dir>/tmp/mxcube/dozor</results_dir>
+
+  <object href="/Detector" role="detector"/>
+
+  <object href="/Detector" role="ssx_setup"/>
+
+</device>
