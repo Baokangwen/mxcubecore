@@ -585,9 +585,9 @@ class MD2(Microdiff.Microdiff):
         self.log.debug(
             "the pixelsPerMmY: %d, Z: %d. the selected x: %d, y: %d. " % (self.pixelsPerMmY, self.pixelsPerMmZ, x, y))
 
-        # beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
-        beam_pos_x = 340
-        beam_pos_y = 236
+        beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+        # beam_pos_x = 340
+        # beam_pos_y = 236
         self.log.debug("the beam_pos_x: %d, y: %d. " % (beam_pos_x, beam_pos_y))
         
         dx = (x - beam_pos_x) / (self.pixelsPerMmY)
@@ -690,9 +690,9 @@ class MD2(Microdiff.Microdiff):
         self.pixelsPerMmY, self.pixelsPerMmZ = self.getCalibrationData(
             self.zoomMotor.get_value()
         )
-        # beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
-        beam_pos_x = 340
-        beam_pos_y = 236
+        beam_pos_x, beam_pos_y = HWR.beamline.beam.get_beam_position_on_screen()
+        # beam_pos_x = 340
+        # beam_pos_y = 236
         if None in (self.pixelsPerMmY, self.pixelsPerMmZ):
             return 0, 0
         # 2. 获取当前中心位置 (Current Center)

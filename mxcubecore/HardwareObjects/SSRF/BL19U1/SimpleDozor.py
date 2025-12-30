@@ -2,6 +2,7 @@ import os
 import subprocess
 import gevent
 import logging
+import shlex
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractOnlineProcessing import AbstractOnlineProcessing
 
@@ -9,207 +10,270 @@ class SimpleDozor(AbstractOnlineProcessing):
     def __init__(self, name):
         AbstractOnlineProcessing.__init__(self, name)
         self.dozor_exec = None
-        self.library_path = None
+        self.lib_cbf = None  # CBF 库
+        self.lib_hdf5 = None # HDF5 库
         self.detector_hwobj = None
 
     def init(self):
         AbstractOnlineProcessing.init(self)
         
-        # 1. 获取 Dozor 可执行文件路径
+        # 1. 获取可执行文件
         self.dozor_exec = self.getProperty("executable")
         if self.dozor_exec is None:
             self.dozor_exec = "/usr/local/bin/dozor"
 
-        # 2. 获取读取图片的库文件路径 (必须配置)
-        self.library_path = self.getProperty("library_path")
-        if self.library_path is None:
-            # 如果 XML 没配，这里给一个硬编码的默认值，防止报错
-            # 请确保这个文件在服务器上真实存在
-            self.library_path = "/home/dozor_test/dozor_example/xds-zcbf.so"
-
+        # 2. 获取库文件路径 (支持配置两种库)
+        # 参考 EDNA 逻辑，根据文件后缀自动切换
+        self.lib_cbf = self.getProperty("library_cbf")
+        self.lib_hdf5 = self.getProperty("library_hdf5")
+        
+        # 兜底默认值 (为了兼容你之前的测试环境)
+        if self.lib_cbf is None:
+            self.lib_cbf = "/home/dozor_test/dozor_example/xds-zcbf.so"
+            
         self.detector_hwobj = self.getObjectByRole("detector")
+
+    def _get_dozor_library(self, template):
+        """
+        参考 EDNA 的 getLibrary 逻辑，根据文件类型返回对应的库
+        """
+        if template.endswith(".h5") and self.lib_hdf5:
+            return self.lib_hdf5
+        return self.lib_cbf
 
     def create_processing_input_file(self, processing_input_filename):
         """
-        生成 dozor.dat 配置文件
-        逻辑：自动转换 MXCuBE 的路径模板为 Dozor 格式
+        参考 ExecDozor.generateCommands 生成配置
         """
-        # --- 获取探测器参数 ---
+        # --- 获取参数 ---
         try:
             dist = self.detector_hwobj.get_distance()
             pixel_x, pixel_y = self.detector_hwobj.get_pixel_size()
             beam_x, beam_y = self.detector_hwobj.get_beam_position()
             wave = HWR.beamline.energy.get_wavelength()
+            det_type = self.detector_hwobj.get_type() # 如果有的话
         except:
-            # 如果获取失败，使用兜底默认值
-            logging.getLogger("HWR").warning("SimpleDozor: Failed to get detector params, using defaults.")
+            logging.getLogger("HWR").warning("SimpleDozor: Using default detector params")
             dist = 345.11
             pixel_x = pixel_y = 0.172
             beam_x = 1229
             beam_y = 1270
             wave = 0.97861
+            det_type = "unknown"
 
-        # --- 核心逻辑：转换路径模板 ---
-        # MXCuBE template: /data/user/sample_1_%04d.cbf
-        # Dozor template:  /data/user/sample_1_????.cbf
-        
         run_num = self.params_dict["run_number"]
         mxcube_template = self.params_dict["template"]
         
-        # 1. 尝试填充 Run Number，把 Image Number 填为 0 占位
+        # --- 路径模板转换逻辑 (保留之前的稳健逻辑) ---
         try:
-            # 假设模板有两个占位符 (RunNum, ImgNum)
             temp_path_str = mxcube_template % (run_num, 0)
         except TypeError:
-            # 假设模板只有一个占位符 (ImgNum)
             temp_path_str = mxcube_template % (0)
 
-        # 2. 计算精度 (即问号的数量)
-        precision = 4 # 默认
+        precision = 4
         if "%05d" in mxcube_template: precision = 5
         elif "%06d" in mxcube_template: precision = 6
         elif "%03d" in mxcube_template: precision = 3
         
         wildcards = "?" * precision
         
-        # 3. 替换末尾的 0000 为 ????
-        # 分离目录+文件名 和 扩展名
+        # HDF5 特殊处理 (参考 EDNA)
+        if mxcube_template.endswith(".h5"):
+            # EDNA 逻辑：如果 HDF5，模板通常是 master 文件或 data 文件
+            # 这里简化处理，依然使用 ???? 替换数字
+            pass 
+
         base_part, ext_part = os.path.splitext(temp_path_str)
-        # 切掉末尾的 '0' (长度等于精度)
         base_part_trimmed = base_part[:-precision]
-        
-        # 拼接最终路径
         dozor_template = f"{base_part_trimmed}{wildcards}{ext_part}"
         
-        logging.getLogger("HWR").info(f"SimpleDozor: Converted template to: {dozor_template}")
+        # 获取对应库文件
+        library = self._get_dozor_library(dozor_template)
 
-        # --- 写入文件 ---
+        # --- 写入文件 (格式参考 ExecDozor) ---
         with open(processing_input_filename, 'w') as f:
-            # 1. 库文件引用
-            if self.library_path:
-                f.write(f"library {self.library_path}\n")
+            f.write("!\n")
+            # f.write(f"detector {det_type}\n") # 可选
+            if library:
+                f.write(f"library {library}\n")
             
-            # 2. 探测器物理参数
-            f.write("!\n! detector parameter\n! ==================\n")
-            # 这里的 nx ny 使用光心*2 进行估算，或者你可以写死 2463/2527
-            f.write(f"nx {int(beam_x * 2)}\n")
-            f.write(f"ny {int(beam_y * 2)}\n") 
+            # 探测器尺寸 (参考 EDNA 的 IX_MIN/MAX 常量逻辑)
+            # 这里我们直接用光心反推，或者你可以在 XML 里配置 ix_max
+            nx = int(beam_x * 2) 
+            ny = int(beam_y * 2)
+            f.write(f"nx {nx}\n")
+            f.write(f"ny {ny}\n")
+            
             f.write(f"pixel {pixel_x}\n")
+            f.write(f"exposure {self.params_dict.get('exp_time', 1.0):.3f}\n")
+            f.write(f"spot_size 3\n")
+            f.write(f"spot_level 5\n") # EDNA 默认是 6
+            f.write(f"detector_distance {dist:.3f}\n")
+            f.write(f"X-ray_wavelength {wave:.3f}\n")
+            f.write("fraction_polarization 0.990\n")
             f.write("pixel_min 0\n")
-            f.write("pixel_max 1273414\n")
+            f.write("pixel_max 64000\n") # Pilatus 典型值
             
-            # 3. 光束中心
-            f.write("!\n! beam position\n! ===============\n")
-            f.write(f"orgx {beam_x}\n")
-            f.write(f"orgy {beam_y}\n")
+            # 坏点区域 (Bad Zona) - 参考 EDNA
+            # 如果你有坏点，可以在这里硬编码或者从 XML 读
+            # f.write("bad_zona 1 10 1 10\n") 
             
-            # 4. 实验参数
-            f.write("!\n! data collection parameters\n! ==========================\n")
-            f.write(f"detector_distance {dist}\n")
-            f.write(f"X-ray_wavelength {wave}\n")
+            f.write(f"orgx {beam_x:.1f}\n")
+            f.write(f"orgy {beam_y:.1f}\n")
+            f.write(f"oscillation_range {self.params_dict.get('osc_range', 0.1):.3f}\n")
             
-            # 5. 图片定义 (引用刚才生成的绝对路径模板)
-            f.write("!\n! images\n! =======\n")
+            # 计算起始角度 (参考 ExecDozor)
+            # overall_starting_angle = startingAngle - (first_image - 1) * osc_range
+            # 注意：MXCuBE 的 osc_start 通常已经是当前采集的起始角了
+            start_angle = self.params_dict.get('osc_start', 0.0)
+            f.write(f"starting_angle {start_angle:.3f}\n")
+            
             f.write(f"first_image_number {self.params_dict['first_image_num']}\n")
             f.write(f"number_images {self.params_dict['images_num']}\n")
             f.write(f"name_template_image {dozor_template}\n")
-            
-            # 6. 选项参数
-            f.write("!\n! OPTIONS\n! =======\n")
-            f.write("spot_size 3\n")
-            f.write("spot_level 5\n")
-            f.write(f"exposure {self.params_dict.get('exp_time', 1.0)}\n")
-            f.write(f"oscillation_range {self.params_dict.get('osc_range', 0.1)}\n")
-            f.write(f"starting_angle {self.params_dict.get('osc_start', 0.0)}\n")
-            
-            f.write("!\nend\n")
+            f.write("end\n")
 
     def run_processing(self, data_collection):
         """
-        启动 Dozor 进程
+        【万能版】run_processing
+        既支持 MeshScan 传过来的 DataCollection 对象
+        也支持 BL19U1Collect 传过来的 参数字典 (Dict)
         """
-        self.data_collection = data_collection
-        # 准备参数字典和目录
-        self.prepare_processing()
+        logging.getLogger("HWR").info("SimpleDozor: run_processing called")
 
-        # 定义 dat 文件路径
-        dat_file = os.path.join(self.params_dict["process_directory"], "dozor_input.dat")
-        # 生成 dat 文件
-        self.create_processing_input_file(dat_file)
-
-        # 构造命令: dozor dozor_input.dat
-        cmd = [self.dozor_exec, dat_file]
+        # =================================================================
+        # 1. 智能判断参数类型
+        # =================================================================
+        is_mesh = False
         
-        logging.getLogger("HWR").info(f"SimpleDozor: Running command: {' '.join(cmd)}")
+        if isinstance(data_collection, dict):
+            # >>> 情况 A：你从 BL19U1Collect 传过来的是字典 <<<
+            logging.getLogger("HWR").info("SimpleDozor: Input is DICTIONARY (Custom Scan)")
+            self.params_dict = data_collection
+            # 既然是 Raster Scan，肯定是 Mesh 模式
+            is_mesh = True
+            
+            # 确保目录存在
+            if not os.path.exists(self.params_dict["process_directory"]):
+                try:
+                    os.makedirs(self.params_dict["process_directory"])
+                except:
+                    pass
+        else:
+            # >>> 情况 B：标准的 MeshScan 传过来的是对象 <<<
+            logging.getLogger("HWR").info("SimpleDozor: Input is OBJECT (Standard Scan)")
+            self.data_collection = data_collection
+            self.prepare_processing() # 基类方法，把对象转为 self.params_dict
+            
+            # 判断是否需要 mesh 模式 (通常都需要)
+            is_mesh = True 
 
+        # =================================================================
+        # 2. 生成配置文件
+        # =================================================================
+        dat_file = os.path.join(self.params_dict["process_directory"], "dozor_input.dat")
+        try:
+            self.create_processing_input_file(dat_file)
+        except Exception as e:
+            logging.getLogger("HWR").error(f"SimpleDozor: Failed to create input file: {e}")
+            self.set_processing_status("Failed")
+            return
+
+        # =================================================================
+        # 3. 构造命令
+        # =================================================================
+        # 这里的 self.dozor_exec 是在 init() 里获取的 /usr/local/bin/dozor
+        cmd = [self.dozor_exec]
+        
+        if is_mesh:
+            cmd.append('-mesh') # Raster Scan 必须加这个
+        else:
+            cmd.append('-pall')
+
+        cmd.append(dat_file)
+        
+        logging.getLogger("HWR").info(f"SimpleDozor: Executing CMD: {' '.join(cmd)}")
+
+        # =================================================================
+        # 4. 启动进程
+        # =================================================================
         try:
             self.started = True
-            # 启动子进程
-            # bufsize=1 意味着行缓冲，确保能实时读到日志
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, # 把错误也输出到 stdout，防止遗漏
+                stderr=subprocess.STDOUT,
                 cwd=self.params_dict["process_directory"],
                 universal_newlines=True,
                 bufsize=1
             )
-            
-            # 使用 Gevent 协程异步监听输出，不阻塞主界面
+            # 启动监听线程
             gevent.spawn(self._monitor_output, process)
-
+            
         except Exception as e:
-            logging.getLogger("HWR").error(f"SimpleDozor: Start failed: {e}")
+            logging.getLogger("HWR").error(f"SimpleDozor: Process start failed: {e}")
             self.set_processing_status("Failed")
 
     def _monitor_output(self, process):
         """
-        解析 Dozor 2.3.9 的表格形式日志
-        Format: 10001 |   910     101.08     1.68
+        移植自 ExecDozor.parseOutput
         """
-        logging.getLogger("HWR").info("SimpleDozor: Monitoring output started...")
+        logging.getLogger("HWR").info("SimpleDozor: Monitoring output...")
         
         for line in process.stdout:
-            # 过滤包含 | 的行，且排除表头
+            # EDNA 逻辑：先去掉 '|' 然后用 shlex 分割
+            # 原始行：10001 | 910 101.08 ...
             if "|" in line and "image" not in line and "SPOTS" not in line:
                 try:
-                    # 分割数据
-                    parts = line.split("|")
+                    # 使用 shlex.split 处理可能的复杂空格
+                    clean_line = line.replace("|", " ")
+                    listLine = shlex.split(clean_line)
                     
-                    # 获取图片号 (Image Number)
-                    img_num_str = parts[0].strip()
-                    if not img_num_str.isdigit():
-                        continue
-                    img_num = int(img_num_str)
-                    
-                    # 获取右侧数据 (Spots, Score, Resolution)
-                    data_parts = parts[1].split()
-                    
-                    spots = int(data_parts[0])
-                    score = float(data_parts[1])
-                    resolution = float(data_parts[2])
+                    if len(listLine) > 0 and listLine[0].isdigit():
+                        img_num = int(listLine[0])
+                        
+                        # 映射索引
+                        relative_index = img_num - self.params_dict["first_image_num"]
+                        
+                        if 0 <= relative_index < self.params_dict["images_num"]:
+                            # --- 核心解析 (参考 ExecDozor 索引) ---
+                            # listLine[1]: Spots Num
+                            # listLine[2]: Int Aver
+                            # listLine[4]: Resolution
+                            # listLine[8]: Main Score (DoDozorScore)
+                            # listLine[10]: Visible Resolution
+                            
+                            spots = int(listLine[1])
+                            
+                            # 注意：EDNA 代码里做了负数判断等逻辑，这里简化处理
+                            # 索引 8 是 Main Score
+                            if len(listLine) > 8:
+                                score = float(listLine[8])
+                            else:
+                                score = 0.0
+                                
+                            # 索引 4 是 Resolution
+                            if len(listLine) > 4:
+                                resolution = float(listLine[4])
+                            else:
+                                resolution = 0.0
 
-                    # 映射到结果数组索引
-                    relative_index = img_num - self.params_dict["first_image_num"]
-
-                    # 安全检查：防止数组越界
-                    if 0 <= relative_index < self.params_dict["images_num"]:
-                        # 更新数据
-                        self.results_raw["score"][relative_index] = score
-                        self.results_raw["spots_num"][relative_index] = spots
-                        self.results_raw["spots_resolution"][relative_index] = resolution
-                        
-                        # 触发对齐 (更新 Heatmap 视图)
-                        self.align_processing_results(relative_index, relative_index)
-                        
-                        # 通知前端刷新
-                        self.emit("processingResultsUpdate", False)
-                        
-                except Exception:
-                    # 解析单行失败直接跳过，不要崩溃
+                            # 更新数据
+                            self.results_raw["score"][relative_index] = score
+                            self.results_raw["spots_num"][relative_index] = spots
+                            self.results_raw["spots_resolution"][relative_index] = resolution
+                            
+                            self.align_processing_results(relative_index, relative_index)
+                            self.emit("processingResultsUpdate", False)
+                except Exception as e:
+                    # logging.getLogger("HWR").warning(f"Parse error: {e}")
                     pass
-        
-        # 等待进程彻底结束
+
+    def set_processing_status(self, status):
+        if self.data_collection is not None and hasattr(self.data_collection, "set_online_processing_results"):
+            AbstractOnlineProcessing.set_processing_status(self, status)
+        else:
+            logging.getLogger("HWR").info(f"SimpleDozor: Processing finished ({status})")   
+
         process.wait()
-        logging.getLogger("HWR").info("SimpleDozor: Process finished.")
         self.set_processing_status("Success")

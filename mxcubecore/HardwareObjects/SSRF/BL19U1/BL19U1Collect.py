@@ -944,6 +944,38 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
             print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
 
+            # ================================Dorzor====================================
+            try:
+                dozor = HWR.beamline.online_processing
+                if dozor:
+                    logging.getLogger("HWR").info("[BL19U1Collect] Triggering SimpleDozor for Mesh Scan...")
+                    file_info = self.current_dc_parameters["fileinfo"]
+                    osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
+                    full_template_path = os.path.join(file_info["directory"], file_info["template"])
+                    
+                    # 优先使用已经存在的 process_directory
+                    proc_dir = file_info.get("process_directory")
+                    if not proc_dir: 
+                         # 兜底逻辑
+                         proc_dir = os.path.join(os.path.dirname(file_info["directory"]), "process")
+
+                    dozor_params = {
+                        "process_directory": proc_dir,
+                        "template": full_template_path,
+                        "run_number": int(file_info["run_number"]),
+                        "first_image_num": int(osc_seq["start_image_number"]),
+                        "images_num": int(self.mesh_total_nb_frames), 
+                        "exp_time": float(osc_seq["exposure_time"]),
+                        "osc_range": 0,
+                        "osc_start": 0
+                    }
+                    logging.getLogger("HWR").info(f"[BL19U1Collect] Dozor Params: {dozor_params}")
+                    dozor.run_processing(dozor_params)
+                else:
+                    logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not found!")
+            except Exception as e:
+                logging.getLogger("HWR").error(f"[BL19U1Collect] Failed to trigger Dozor: {e}")
+            # ===========================================================================
             # 注意：请确保这里调用的是标准的 oscilScanMesh，不要有多余的参数！
             HWR.beamline.diffractometer.oscilScanMesh(
                 start,
