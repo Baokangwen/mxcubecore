@@ -947,35 +947,65 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             # ================================Dorzor====================================
             try:
                 dozor = HWR.beamline.online_processing
+                
                 if dozor:
-                    logging.getLogger("HWR").info("[BL19U1Collect] Triggering SimpleDozor for Mesh Scan...")
+                    logging.getLogger("HWR").info("[BL19U1Collect] Triggering SimpleDozor (Ramdisk Fix)...")
+                    
                     file_info = self.current_dc_parameters["fileinfo"]
                     osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
-                    full_template_path = os.path.join(file_info["directory"], file_info["template"])
                     
-                    # 优先使用已经存在的 process_directory
-                    proc_dir = file_info.get("process_directory")
-                    if not proc_dir: 
-                         # 兜底逻辑
-                         proc_dir = os.path.join(os.path.dirname(file_info["directory"]), "process")
+                    # 1. 【强行修正路径】把 /home/... 替换为 /ramdisk/...
+                    # 根据你的 ls 结果，数据其实在 ramdisk 里
+                    raw_dir = file_info["directory"]
+                    if "/home/bl19u1/inhouse/idtest0" in raw_dir:
+                        # 这是一个基于你 ls 结果的替换逻辑，确保 Dozor 去 ramdisk 找
+                        raw_dir = raw_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
+                    
+                    # 2. 【强行修正文件名模板】匹配 scanv1-scanv1_1_10001.cbf
+                    # 注意：你的文件是5位数字 (10001)
+                    prefix = file_info["prefix"] # scanv1
+                    run_number = int(file_info["run_number"]) # 1
+                    
+                    # 构造模板： scanv1-scanv1_1_?????.cbf
+                    # 我们这里用 %05d 来匹配 5位数
+                    # 如果前缀真的是重复的 scanv1-scanv1，我们需要在这里拼出来
+                    # 也可以直接用 file_info['filename'] 的逻辑
+                    
+                    # 简单粗暴法：基于你的 ls 结果构造
+                    # 这里的 %05d 会被 SimpleDozor 里的代码转成 ?????
+                    template_name = f"{prefix}-{prefix}_{run_number}_%05d.cbf"
+                    full_template_path = os.path.join(raw_dir, template_name)
+                    
+                    # 3. 【强行修正起始号】告诉 Dozor 从 10001 开始找
+                    # 你的文件是从 10001 开始的
+                    real_start_image = 10000 + int(osc_seq["start_image_number"])
+
+                    # 4. 确定 Process 目录 (也放在 ramdisk 以便快速访问)
+                    # 在 raw_dir 的上一级找 process
+                    # /ramdisk/.../test/scanv1/ -> /ramdisk/.../test/process/
+                    proc_dir = os.path.join(os.path.dirname(raw_dir), "process")
 
                     dozor_params = {
                         "process_directory": proc_dir,
                         "template": full_template_path,
-                        "run_number": int(file_info["run_number"]),
-                        "first_image_num": int(osc_seq["start_image_number"]),
+                        "run_number": run_number,
+                        "first_image_num": real_start_image, # 这里传 10001
                         "images_num": int(self.mesh_total_nb_frames), 
                         "exp_time": float(osc_seq["exposure_time"]),
                         "osc_range": 0,
                         "osc_start": 0
                     }
+                    
                     logging.getLogger("HWR").info(f"[BL19U1Collect] Dozor Params: {dozor_params}")
                     dozor.run_processing(dozor_params)
+                    
                 else:
                     logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not found!")
+
             except Exception as e:
                 logging.getLogger("HWR").error(f"[BL19U1Collect] Failed to trigger Dozor: {e}")
-            # ===========================================================================
+            # ===================================end========================================
+            
             # 注意：请确保这里调用的是标准的 oscilScanMesh，不要有多余的参数！
             HWR.beamline.diffractometer.oscilScanMesh(
                 start,

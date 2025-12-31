@@ -43,96 +43,97 @@ class SimpleDozor(AbstractOnlineProcessing):
 
     def create_processing_input_file(self, processing_input_filename):
         """
-        参考 ExecDozor.generateCommands 生成配置
+        生成 Dozor 配置文件 (dozor_input.dat)
+        针对 LNLSPilatusDet.py 进行了单位适配 (米 -> 毫米)
         """
-        # --- 获取参数 ---
+        # 1. 获取探测器对象
+        # 为了保险，直接从 HWR 全局获取，绕过 role 查找可能存在的空指针
         try:
-            dist = self.detector_hwobj.get_distance()
-            pixel_x, pixel_y = self.detector_hwobj.get_pixel_size()
-            beam_x, beam_y = self.detector_hwobj.get_beam_position()
-            wave = HWR.beamline.energy.get_wavelength()
-            det_type = self.detector_hwobj.get_type() # 如果有的话
+            det = HWR.beamline.detector
         except:
-            logging.getLogger("HWR").warning("SimpleDozor: Using default detector params")
+            det = self.getObjectByRole("detector")
+
+        # 2. 获取参数 (增加单位自动修正逻辑)
+        try:
+            # --- 距离 (Distance) ---
+            # 优先尝试 get_detector_distance (你的脚本里是这个名字)
+            if hasattr(det, "get_detector_distance"):
+                dist = det.get_detector_distance()
+            else:
+                dist = det.get_distance()
+            
+            # --- 像素大小 (Pixel Size) ---
+            # 你的脚本返回的是 0.000172 (米)，Dozor 需要 0.172 (毫米)
+            pixel_x = det.get_pixel_size_x()
+            pixel_y = det.get_pixel_size_y()
+            
+            # 【关键修正】如果小于 1，说明是米，乘以 1000 转成毫米
+            if pixel_x < 1.0: pixel_x *= 1000.0
+            if pixel_y < 1.0: pixel_y *= 1000.0
+
+            # --- 光心 (Beam Center) ---
+            # 你的脚本里 get_beam_position 返回的是像素坐标 (x, y)
+            beam_x, beam_y = det.get_beam_position()
+            
+            # --- 波长 (Wavelength) ---
+            wave = HWR.beamline.energy.get_wavelength()
+            
+        except Exception as e:
+            logging.getLogger("HWR").error(f"SimpleDozor: Error reading detector params: {e}")
+            # 兜底默认值 (万一硬件对象没连上)
             dist = 345.11
             pixel_x = pixel_y = 0.172
             beam_x = 1229
             beam_y = 1270
-            wave = 0.97861
-            det_type = "unknown"
+            wave = 0.979
 
-        run_num = self.params_dict["run_number"]
-        mxcube_template = self.params_dict["template"]
+        # 3. 获取扫描参数
+        # 优先从 params_dict (BL19U1Collect 传过来的) 里拿，拿不到再用默认值
+        first_image_num = self.params_dict.get('first_image_num', 1)
+        images_num = self.params_dict.get('images_num', 1)
+        template = self.params_dict.get('template', 'unknown_template')
         
-        # --- 路径模板转换逻辑 (保留之前的稳健逻辑) ---
-        try:
-            temp_path_str = mxcube_template % (run_num, 0)
-        except TypeError:
-            temp_path_str = mxcube_template % (0)
+        # 曝光时间 & 振荡角度
+        exp_time = self.params_dict.get('exp_time', 1.0)
+        osc_range = self.params_dict.get('osc_range', 0.0) # Raster Scan 通常是 0
+        start_angle = self.params_dict.get('osc_start', 0.0)
 
-        precision = 4
-        if "%05d" in mxcube_template: precision = 5
-        elif "%06d" in mxcube_template: precision = 6
-        elif "%03d" in mxcube_template: precision = 3
-        
-        wildcards = "?" * precision
-        
-        # HDF5 特殊处理 (参考 EDNA)
-        if mxcube_template.endswith(".h5"):
-            # EDNA 逻辑：如果 HDF5，模板通常是 master 文件或 data 文件
-            # 这里简化处理，依然使用 ???? 替换数字
-            pass 
+        # 4. 获取库文件 (CBF vs HDF5)
+        library = self._get_dozor_library(template)
 
-        base_part, ext_part = os.path.splitext(temp_path_str)
-        base_part_trimmed = base_part[:-precision]
-        dozor_template = f"{base_part_trimmed}{wildcards}{ext_part}"
-        
-        # 获取对应库文件
-        library = self._get_dozor_library(dozor_template)
-
-        # --- 写入文件 (格式参考 ExecDozor) ---
+        # 5. 写入文件
         with open(processing_input_filename, 'w') as f:
             f.write("!\n")
-            # f.write(f"detector {det_type}\n") # 可选
             if library:
                 f.write(f"library {library}\n")
             
-            # 探测器尺寸 (参考 EDNA 的 IX_MIN/MAX 常量逻辑)
-            # 这里我们直接用光心反推，或者你可以在 XML 里配置 ix_max
-            nx = int(beam_x * 2) 
-            ny = int(beam_y * 2)
-            f.write(f"nx {nx}\n")
-            f.write(f"ny {ny}\n")
+            # 探测器尺寸 (根据光心反推大概尺寸，或者写死)
+            # Pilatus 6M 约为 2463 x 2527
+            f.write(f"nx 2463\n") 
+            f.write(f"ny 2527\n")
             
-            f.write(f"pixel {pixel_x}\n")
-            f.write(f"exposure {self.params_dict.get('exp_time', 1.0):.3f}\n")
+            f.write(f"pixel {pixel_x:.4f}\n") # 确保写入的是 0.172
+            f.write(f"exposure {exp_time:.3f}\n")
             f.write(f"spot_size 3\n")
-            f.write(f"spot_level 5\n") # EDNA 默认是 6
+            f.write(f"spot_level 5\n")
             f.write(f"detector_distance {dist:.3f}\n")
             f.write(f"X-ray_wavelength {wave:.3f}\n")
             f.write("fraction_polarization 0.990\n")
             f.write("pixel_min 0\n")
-            f.write("pixel_max 64000\n") # Pilatus 典型值
-            
-            # 坏点区域 (Bad Zona) - 参考 EDNA
-            # 如果你有坏点，可以在这里硬编码或者从 XML 读
-            # f.write("bad_zona 1 10 1 10\n") 
+            f.write("pixel_max 64000\n")
             
             f.write(f"orgx {beam_x:.1f}\n")
             f.write(f"orgy {beam_y:.1f}\n")
-            f.write(f"oscillation_range {self.params_dict.get('osc_range', 0.1):.3f}\n")
-            
-            # 计算起始角度 (参考 ExecDozor)
-            # overall_starting_angle = startingAngle - (first_image - 1) * osc_range
-            # 注意：MXCuBE 的 osc_start 通常已经是当前采集的起始角了
-            start_angle = self.params_dict.get('osc_start', 0.0)
+            f.write(f"oscillation_range {osc_range:.3f}\n")
             f.write(f"starting_angle {start_angle:.3f}\n")
             
-            f.write(f"first_image_number {self.params_dict['first_image_num']}\n")
-            f.write(f"number_images {self.params_dict['images_num']}\n")
-            f.write(f"name_template_image {dozor_template}\n")
+            f.write(f"first_image_number {first_image_num}\n")
+            f.write(f"number_images {images_num}\n")
+            f.write(f"name_template_image {template}\n")
             f.write("end\n")
-
+            
+        logging.getLogger("HWR").info(f"SimpleDozor: Input file created. Pixel: {pixel_x:.4f}mm, Dist: {dist:.1f}mm")
+        
     def run_processing(self, data_collection):
         """
         【万能版】run_processing
