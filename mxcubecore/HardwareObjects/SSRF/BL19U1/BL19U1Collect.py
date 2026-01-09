@@ -1072,12 +1072,17 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                     
                     # --- 路径修正 (读取数据的路径: /ramdisk) ---
                     original_dir = file_info["directory"]
-                    if "/home/bl19u1/inhouse/idtest0" in original_dir:
-                        raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
+                    if "RAW_DATA" in original_dir:
+                        relative_path = original_dir.split("RAW_DATA")[1]
+                        raw_dir = "/ramdisk" + relative_path
+                        raw_dir = raw_dir.replace("//", "/")
                     else:
-                        # 你的环境默认替换逻辑
-                        raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
-
+                        if "/home/bl19u1/inhouse/idtest0" in original_dir:
+                            raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
+                        else:
+                            raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
+                    logging.getLogger("HWR").info(f"[Path Fix] Real Ramdisk Path: {raw_dir}")
+                    
                     # --- 模板修正 ---
                     prefix = file_info["prefix"]
                     run_number = int(file_info["run_number"])

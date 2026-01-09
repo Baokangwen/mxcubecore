@@ -71,6 +71,9 @@ class SimpleDozor(AbstractOnlineProcessing):
             else:
                 dist = det.get_distance()
             
+            if dist > 10000:
+                dist = dist / 1000.0
+            
             # --- 像素大小 (Pixel Size) ---
             pixel_x = det.get_pixel_size_x()
             pixel_y = det.get_pixel_size_y()
