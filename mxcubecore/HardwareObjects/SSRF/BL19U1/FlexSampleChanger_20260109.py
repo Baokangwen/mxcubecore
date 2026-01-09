@@ -234,7 +234,7 @@ class FlexSampleChanger(AbstractSampleChanger.SampleChanger):
 
     def pulling_state_flex(self):
         while self.pulling_state_flex_flag:
-            gevent.sleep(0.5)
+            time.sleep(0.05)
             try:
                 if self._ready():
                     self._set_state(AbstractSampleChanger.SampleChangerState.Ready)
@@ -397,7 +397,7 @@ class FlexSampleChanger(AbstractSampleChanger.SampleChanger):
             timeout, RuntimeError("Timeout waiting for FlexRobot to be ready")
         ):
             while not self._ready():
-                gevent.sleep(0.5)
+                time.sleep(0.5)
 
     def wait_centring_ready_when_load(self,puck_num,pin_num,task_id,timeout=None):
         MD2 = HWR.beamline.diffractometer
@@ -423,7 +423,7 @@ class FlexSampleChanger(AbstractSampleChanger.SampleChanger):
             while True:
                 load_sample_state = self._cmdGetCurrentLoadSampleState()
                 # print("in while true, load_sample_state: ")
-                gevent.sleep(0.3)
+                time.sleep(0.3)
                 if load_sample_state == 'on_gonio' and MD2.get_state() =='Ready':
                     break
                 if self._ready():
@@ -584,7 +584,7 @@ class FlexSampleChanger(AbstractSampleChanger.SampleChanger):
         MD2 = HWR.beamline.diffractometer
         if MD2.get_current_phase() != "Transfer":
             MD2.set_phase("Transfer", wait=True)
-            gevent.sleep(0.5)
+            time.sleep(0.5)
             print("切换完成")
         gevent.sleep(timeout)
         if MD2.get_current_phase() == "Transfer":
