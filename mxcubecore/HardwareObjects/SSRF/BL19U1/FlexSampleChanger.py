@@ -1,3 +1,5 @@
+import csv
+import codecs
 import gevent
 from datetime import datetime
 import time
@@ -8,9 +10,6 @@ from mxcubecore.HardwareObjects.abstract import AbstractSampleChanger
 from mxcubecore.HardwareObjects.abstract.sample_changer import Container
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.queue_entry.base_queue_entry import CENTRING_METHOD
-
-
-
 
 
 def if_running_sc(func):
@@ -1018,7 +1017,82 @@ class FlexSampleChanger(AbstractSampleChanger.SampleChanger):
 
         self._set_state(AbstractSampleChanger.SampleChangerState.Ready)
 
+    
+    # 上传样品csv文件
+    def import_samples_from_csv(self, file_path):
+        """
+        功能：从 CSV 文件批量导入样品信息 (无需 Pandas)
+        参数：file_path (str) - CSV 文件的绝对路径
+        要求：CSV 文件需包含表头: Puck, Pin, SampleName, Directory, Prefix
+        """
+        logging.getLogger("user_level_log").info(f"正在导入样品信息(CSV): {file_path}")
 
+        try:
+            count = 0
+            
+            # 使用 codecs 打开以处理可能的中文编码问题 (utf-8-sig 可以处理带BOM的UTF8)
+            # 如果用户是在 Windows Excel 另存的 CSV，通常是 'gbk' 或 'utf-8-sig'
+            try:
+                f = codecs.open(file_path, 'r', 'utf-8-sig')
+                reader = csv.DictReader(f)
+            except UnicodeDecodeError:
+                # 如果 utf-8 失败，尝试 gbk (适应中文 Windows)
+                f = codecs.open(file_path, 'r', 'gbk')
+                reader = csv.DictReader(f)
+
+            # 读取所有数据
+            rows = list(reader)
+            f.close()
+
+            for index, row in enumerate(rows):
+                try:
+                    # 这里的键名要和 CSV 表头严格一致 (区分大小写)
+                    # 去除可能存在的空格
+                    puck_str = row.get('Puck', '').strip()
+                    pin_str = row.get('Pin', '').strip()
+
+                    if not puck_str or not pin_str:
+                        continue
+
+                    puck = int(puck_str)
+                    pin = int(pin_str)
+
+                    # 越界检查
+                    if not (1 <= puck <= self.no_of_baskets) or not (1 <= pin <= self.no_of_samples_in_basket):
+                        continue
+
+                    # 获取其他信息
+                    name = row.get('SampleName', '').strip()
+                    directory = row.get('Directory', '').strip()
+                    prefix = row.get('Prefix', '').strip()
+
+                    # 更新后端数组 (索引从0开始)
+                    self.proteinAcronym[puck-1][pin-1] = directory
+                    self.default_prefix[puck-1][pin-1] = prefix
+
+                    # 更新内存对象
+                    sample_obj = self.get_component_by_address(
+                        Container.Pin.get_sample_address(puck, pin)
+                    )
+                    
+                    if sample_obj:
+                        sample_obj._name = name
+                        # 标记已填信息
+                        sample_obj._set_info(True, name, False)
+                        
+                    count += 1
+
+                except ValueError:
+                    continue # 跳过数字转换失败的行
+
+            logging.getLogger("user_level_log").info(f"导入完成，共更新 {count} 个样品信息")
+            
+            # 通知前端刷新
+            self.emit("sampleChangerContentsUpdated", (self.no_of_baskets, self.no_of_samples_in_basket))
+
+        except Exception as e:
+            logging.getLogger("user_level_log").error(f"导入 CSV 失败: {e}")
+            # 不抛出异常，防止崩掉整个程序，只是记录日志
 
     def notice_for_developer(self):
         """
