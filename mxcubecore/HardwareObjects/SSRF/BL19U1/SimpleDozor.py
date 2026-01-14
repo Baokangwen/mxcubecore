@@ -3,6 +3,7 @@ import subprocess
 import gevent
 import logging
 import shlex
+import time
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractOnlineProcessing import AbstractOnlineProcessing
 
@@ -13,6 +14,11 @@ class SimpleDozor(AbstractOnlineProcessing):
         self.lib_cbf = None  # CBF 库
         self.lib_hdf5 = None # HDF5 库
         self.detector_hwobj = None
+        
+        # 数据容器初始化
+        self.results_raw = {}
+        self.results_aligned = {}
+        self.results_clean = {} # 【必加】防止 AttributeError
 
     def init(self):
         AbstractOnlineProcessing.init(self)
@@ -44,18 +50,15 @@ class SimpleDozor(AbstractOnlineProcessing):
         """
         生成 Dozor 配置文件 (dozor_input.dat)
         """
-        # --- FIX START: 确保父目录存在 ---
-        # 获取要写入文件的文件夹路径
+        # --- 确保父目录存在 ---
         directory = os.path.dirname(processing_input_filename)
         if not os.path.exists(directory):
             try:
-                # 递归创建目录 (类似 mkdir -p)
                 os.makedirs(directory, exist_ok=True)
                 logging.getLogger("HWR").info(f"SimpleDozor: Created directory {directory}")
             except OSError as e:
                 logging.getLogger("HWR").error(f"SimpleDozor: Failed to create directory {directory}: {e}")
-                raise e # 抛出异常终止后续操作
-        # --- FIX END ---
+                raise e 
 
         # 1. 获取探测器对象
         try:
@@ -78,7 +81,7 @@ class SimpleDozor(AbstractOnlineProcessing):
             pixel_x = det.get_pixel_size_x()
             pixel_y = det.get_pixel_size_y()
             
-            # 【关键修正】如果小于 1，说明是米，乘以 1000 转成毫米
+            # 如果小于 1，说明是米，乘以 1000 转成毫米
             if pixel_x < 1.0: pixel_x *= 1000.0
             if pixel_y < 1.0: pixel_y *= 1000.0
 
@@ -147,15 +150,14 @@ class SimpleDozor(AbstractOnlineProcessing):
         """
         logging.getLogger("HWR").info("SimpleDozor: run_processing called")
 
-        # =================================================================
         # 1. 智能判断参数类型
-        # =================================================================
         is_mesh = False
         
         if isinstance(data_collection, dict):
             logging.getLogger("HWR").info("SimpleDozor: Input is DICTIONARY (Custom Scan)")
             self.params_dict = data_collection
             is_mesh = True
+            # 初始化 raw 容器
             self.results_raw = {
                 "score": {},
                 "spots_num": {},
@@ -167,11 +169,8 @@ class SimpleDozor(AbstractOnlineProcessing):
             self.prepare_processing()
             is_mesh = True 
 
-        # =================================================================
         # 2. 生成配置文件
-        # =================================================================
         try:
-            # 确保从字典里取出的路径是字符串
             process_dir = str(self.params_dict["process_directory"])
             dat_file = os.path.join(process_dir, "dozor_input.dat")
             
@@ -181,11 +180,8 @@ class SimpleDozor(AbstractOnlineProcessing):
             self.set_processing_status("Failed")
             return
 
-        # =================================================================
         # 3. 构造命令
-        # =================================================================
         cmd = [self.dozor_exec]
-        
         if is_mesh:
             cmd.append('-mesh')
         else:
@@ -195,10 +191,8 @@ class SimpleDozor(AbstractOnlineProcessing):
         
         logging.getLogger("HWR").info(f"SimpleDozor: Executing CMD: {' '.join(cmd)}")
 
-        # =================================================================
         # 4. 启动进程
-        # =================================================================
-        process = None # --- FIX: 初始化变量，防止 except 中引用报错 ---
+        process = None 
         try:
             self.started = True
             process = subprocess.Popen(
@@ -215,75 +209,250 @@ class SimpleDozor(AbstractOnlineProcessing):
         except Exception as e:
             logging.getLogger("HWR").error(f"SimpleDozor: Process start failed: {e}")
             self.set_processing_status("Failed")
-            # --- FIX: 安全关闭 ---
             if process is not None:
                 try:
                     process.kill()
                 except:
                     pass
 
+    def get_results(self):
+        """
+        前端拉取数据接口
+        """
+        if hasattr(self, "results_clean") and self.results_clean:
+            return self.results_clean
+        return {}
+
+    def _get_rgb_from_score(self, score):
+        """
+        将分数转换为 RGB 颜色 [R, G, B]
+        0   -> 蓝色 (0, 0, 255)
+        中  -> 绿色 (0, 255, 0)
+        高  -> 红色 (255, 0, 0)
+        """
+        if score <= 0: return [0, 0, 255] # 0分或负分显示蓝色
+        
+        # 设定一个合理的最大值阈值，例如 50 (根据实际晶体质量调整)
+        # 如果明天带光测试，可以把这里改成 50.0 或 100.0
+        max_score = 50.0 
+        normalized = min(max(score, 0), max_score) / max_score
+        
+        # 简易热力图配色：蓝 -> 绿 -> 红
+        if normalized < 0.5:
+            # Blue to Green
+            r = 0
+            g = int(255 * (normalized * 2))
+            b = int(255 * (1 - normalized * 2))
+        else:
+            # Green to Red
+            r = int(255 * ((normalized - 0.5) * 2))
+            g = int(255 * (1 - (normalized - 0.5) * 2))
+            b = 0
+            
+        return [r, g, b]
+
+    def _calc_screen_coords(self, relative_index):
+        """
+        计算屏幕坐标 (用于点击移动)
+        """
+        try:
+            diff = HWR.beamline.diffractometer
+            beam = HWR.beamline.beam
+            collect = HWR.beamline.collect
+
+            osc_seq = collect.current_dc_parameters["oscillation_sequence"][0]
+            mesh_range = osc_seq.get("mesh_range") 
+            num_lines = osc_seq.get("number_of_lines") 
+            total_images = osc_seq.get("number_of_images") 
+            
+            if not mesh_range or not num_lines or not diff:
+                return 0.0, 0.0
+
+            px_per_mm_y, px_per_mm_z = diff.getCalibrationData(diff.zoomMotor.get_value())
+            beam_x, beam_y = beam.get_beam_position_on_screen()
+
+            num_cols = num_lines
+            num_rows = int(total_images / num_cols)
+            if num_rows == 0: num_rows = 1
+            
+            row = int(relative_index / num_cols)
+            col = int(relative_index % num_cols)
+
+            width_mm = mesh_range[0] / 1000.0
+            height_mm = mesh_range[1] / 1000.0
+            
+            step_w_mm = width_mm / num_cols
+            step_h_mm = height_mm / num_rows
+
+            start_offset_w = -width_mm / 2.0 + step_w_mm / 2.0
+            start_offset_h = -height_mm / 2.0 + step_h_mm / 2.0
+            
+            delta_w_mm = start_offset_w + (col * step_w_mm)
+            delta_h_mm = start_offset_h + (row * step_h_mm)
+
+            final_x = beam_x + (delta_w_mm * px_per_mm_y)
+            final_y = beam_y + (delta_h_mm * px_per_mm_z)
+
+            return float(final_x), float(final_y)
+
+        except Exception as e:
+            logging.getLogger("HWR").error(f"Calc Coords Error: {e}")
+            return 0.0, 0.0
+
+    def align_processing_results(self, start_index, end_index):
+        """
+        【前端适配版】构造 DrawGridPlugin.js 数据格式
+        { 'heatmap': { 1: [Score, [R,G,B]], ... } }
+        """
+        # 安全初始化
+        if "results_clean" not in self.__dict__ or self.results_clean is None:
+            self.results_clean = {}
+        if "results_aligned" not in self.__dict__ or self.results_aligned is None:
+            self.results_aligned = {}
+        
+        self.results_clean.setdefault("heatmap", {})
+        
+        for i in range(start_index, end_index + 1):
+            raw_score = self.results_raw.get("score", {}).get(i, 0.0)
+            
+            # --- 恢复真实分数 ---
+            display_score = raw_score 
+            
+            # 计算 RGB
+            rgb_color = self._get_rgb_from_score(display_score)
+            
+            # 计算坐标
+            real_x, real_y = self._calc_screen_coords(i)
+
+            # Web Key (1-based index)
+            web_key = i + 1
+            
+            # 数据包: [Score, [R, G, B]]
+            data_packet = [display_score, rgb_color]
+            
+            # 填入 results_clean (前端看这个)
+            self.results_clean["heatmap"][web_key] = data_packet
+            
+            # 填入 results_aligned (兼容性)
+            self.results_aligned.setdefault("score", {})[i] = display_score
+            self.results_aligned.setdefault("x", {})[i] = real_x
+            self.results_aligned.setdefault("y", {})[i] = real_y
+
+            # 日志 (只打第一条，避免刷屏)
+            if i == start_index:
+                logging.getLogger("HWR").info(f"👉 WebPacket[{web_key}]: {data_packet}")
+
     def _monitor_output(self, process):
         """
-        【已修复】监控输出并在结束后更新状态
-        修正了列索引，适配 Dozor v2.3.9 的输出格式
+        【完整流程监控】
+        1. 提取 Grid 参数 (含 runId 和 比例尺)
+        2. 发送 newProcessingRun
+        3. 实时解析并更新 heatmap
+        4. 结束时发送 processingFinished
         """
         logging.getLogger("HWR").info("SimpleDozor: Monitoring output...")
-        
+
+        # 1. 初始信号构建
+        try:
+            dc_params = HWR.beamline.collect.current_dc_parameters
+            osc_seq = dc_params["oscillation_sequence"][0]
+            run_number = dc_params.get("fileinfo", {}).get("run_number", 1)
+            
+            num_cols = osc_seq.get("number_of_lines", 1)
+            total_images = osc_seq.get("number_of_images", 0)
+            mesh_range = osc_seq.get("mesh_range", (0, 0)) 
+            
+            num_rows = int(total_images / num_cols) if num_cols > 0 else 1
+            if num_rows == 0: num_rows = 1
+
+            width_mm = mesh_range[0] / 1000.0
+            height_mm = mesh_range[1] / 1000.0
+            
+            # 获取 Pixels per MM
+            try:
+                diff = HWR.beamline.diffractometer
+                px_per_mm_y, px_per_mm_z = diff.getCalibrationData(diff.zoomMotor.get_value())
+            except:
+                px_per_mm_y, px_per_mm_z = 500.0, 500.0 # 默认值
+
+            start_payload = {
+                "id": run_number,               
+                "runId": run_number,
+                "numCols": num_cols,
+                "numRows": num_rows,
+                "width": width_mm,
+                "height": height_mm,
+                "cellWidth": (width_mm / num_cols) * 1000,   
+                "cellHeight": (height_mm / num_rows) * 1000, 
+                "pixelsPerMMX": px_per_mm_y, 
+                "pixelsPerMMY": px_per_mm_z,
+                "status": "started",
+                "resultType": "heatmap",
+                "algorithm": "dozor"
+            }
+            
+            logging.getLogger("HWR").info(f"SimpleDozor: 🚀 Link Run {run_number}, Scale={px_per_mm_y:.1f}")
+            self.emit("newProcessingRun", start_payload)
+            self.emit("processingStarted", start_payload)
+            gevent.sleep(0.5)
+            
+        except Exception as e:
+            logging.getLogger("HWR").error(f"SimpleDozor: Payload error: {e}")
+
+        # 2. 容器准备
+        if self.results_raw is None: self.results_raw = {}
+        if "results_clean" not in self.__dict__ or self.results_clean is None:
+            self.results_clean = {}
+        self.results_clean.setdefault("heatmap", {})
+
+        # 3. 循环解析
         try:
             for line in process.stdout:
-                # 打印原始日志，方便调试 (建议加上)
-                # logging.getLogger("HWR").info(f"Dozor Raw: {line.strip()}")
-
-                # 原始行：10001 | 910 101.08 2.5
                 if "|" in line and "image" not in line and "SPOTS" not in line:
                     try:
                         clean_line = line.replace("|", " ")
                         listLine = shlex.split(clean_line)
-                        
-                        # 确保至少有数据
                         if len(listLine) >= 3 and listLine[0].isdigit():
                             img_num = int(listLine[0])
-                            
-                            # 映射索引
-                            relative_index = img_num - self.params_dict.get("first_image_num", 1)
-                            
-                            # 获取总张数
+                            first_img = self.params_dict.get("first_image_num", 1)
+                            relative_index = img_num - first_img
                             total_images = self.params_dict.get("images_num", 0)
 
                             if 0 <= relative_index < total_images:
-                                # === 解析核心修正 ===
-                                # 你的 Dozor 输出格式: [Image, Spots, Score, Resolution]
-                                # Index:                 0      1      2       3
-                                
                                 spots = int(listLine[1])
-                                
-                                # Score 在第 3 列 (索引 2)
                                 score = float(listLine[2]) if len(listLine) > 2 else 0.0
-                                
-                                # Resolution 在第 4 列 (索引 3)
                                 resolution = float(listLine[3]) if len(listLine) > 3 else 0.0
                                 
-                                # 更新数据
-                                self.results_raw["score"][relative_index] = score
-                                self.results_raw["spots_num"][relative_index] = spots
-                                self.results_raw["spots_resolution"][relative_index] = resolution
+                                self.results_raw.setdefault("score", {})[relative_index] = score
+                                self.results_raw.setdefault("spots_num", {})[relative_index] = spots
+                                self.results_raw.setdefault("spots_resolution", {})[relative_index] = resolution
                                 
-                                # 发送信号
                                 self.align_processing_results(relative_index, relative_index)
-                                self.emit("processingResultsUpdate", False)
                                 
-                                # 调试日志：看到这行说明解析成功了！
-                                # logging.getLogger("HWR").info(f"Parsed Img {img_num}: Score={score}")
+                                # 发送更新 (带 runId)
+                                update_payload = self.results_clean.copy()
+                                update_payload['id'] = run_number
+                                self.emit("processingResultsUpdate", (False, update_payload))
+                                gevent.sleep(0.01) # 微小延时防止阻塞
 
-                    except Exception as e:
-                        logging.getLogger("HWR").error(f"SimpleDozor: Parse Error on line '{line.strip()}': {e}")
+                    except Exception:
                         pass
         except Exception as e:
             logging.getLogger("HWR").error(f"SimpleDozor: Monitor loop error: {e}")
 
-        # --- FIX: 进程结束后在这里更新状态 ---
-        process.wait() # 等待进程彻底退出
-        logging.getLogger("HWR").info("SimpleDozor: Process finished successfully.")
+        process.wait()
+        
+        # 4. 结束处理
+        total_images = self.params_dict.get("images_num", 0)
+        self.align_processing_results(0, total_images - 1)
+        
+        logging.getLogger("HWR").info("SimpleDozor: Process finished.")
+        
+        final_payload = self.results_clean.copy()
+        final_payload['id'] = run_number
+        
+        self.emit("processingResultsUpdate", (True, final_payload))
+        self.emit("processingFinished") # 无参数
         self.set_processing_status("Success")
 
     def set_processing_status(self, status):
@@ -291,5 +460,4 @@ class SimpleDozor(AbstractOnlineProcessing):
         if self.data_collection is not None and hasattr(self.data_collection, "set_online_processing_results"):
             AbstractOnlineProcessing.set_processing_status(self, status)
         else:
-            # 如果是纯字典模式，没有 data_collection 对象，仅打印日志
             logging.getLogger("HWR").info(f"SimpleDozor: Processing Status -> {status}")

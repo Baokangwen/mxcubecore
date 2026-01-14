@@ -5,6 +5,6 @@
   <library_cbf>/home/dozor_test/dozor_example/xds-zcbf.so</library_cbf>
   
   <results_dir>/tmp/mxcube/dozor</results_dir>
-  <object href="/Detector" role="detector"/>
-  <object href="/Detector" role="ssx_setup"/>
+  <object href="/detector" role="detector"/>
+  <object href="/detector" role="ssx_setup"/>
 </device>
