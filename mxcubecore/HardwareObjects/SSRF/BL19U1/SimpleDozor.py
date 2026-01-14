@@ -156,6 +156,11 @@ class SimpleDozor(AbstractOnlineProcessing):
             logging.getLogger("HWR").info("SimpleDozor: Input is DICTIONARY (Custom Scan)")
             self.params_dict = data_collection
             is_mesh = True
+            self.results_raw = {
+                "score": {},
+                "spots_num": {},
+                "spots_resolution": {}
+            }
         else:
             logging.getLogger("HWR").info("SimpleDozor: Input is OBJECT (Standard Scan)")
             self.data_collection = data_collection
@@ -219,37 +224,59 @@ class SimpleDozor(AbstractOnlineProcessing):
 
     def _monitor_output(self, process):
         """
-        监控输出并在结束后更新状态
+        【已修复】监控输出并在结束后更新状态
+        修正了列索引，适配 Dozor v2.3.9 的输出格式
         """
         logging.getLogger("HWR").info("SimpleDozor: Monitoring output...")
         
         try:
             for line in process.stdout:
-                # 原始行：10001 | 910 101.08 ...
+                # 打印原始日志，方便调试 (建议加上)
+                # logging.getLogger("HWR").info(f"Dozor Raw: {line.strip()}")
+
+                # 原始行：10001 | 910 101.08 2.5
                 if "|" in line and "image" not in line and "SPOTS" not in line:
                     try:
                         clean_line = line.replace("|", " ")
                         listLine = shlex.split(clean_line)
                         
-                        if len(listLine) > 0 and listLine[0].isdigit():
+                        # 确保至少有数据
+                        if len(listLine) >= 3 and listLine[0].isdigit():
                             img_num = int(listLine[0])
                             
                             # 映射索引
-                            relative_index = img_num - self.params_dict["first_image_num"]
+                            relative_index = img_num - self.params_dict.get("first_image_num", 1)
                             
-                            if 0 <= relative_index < self.params_dict["images_num"]:
-                                spots = int(listLine[1])
-                                score = float(listLine[8]) if len(listLine) > 8 else 0.0
-                                resolution = float(listLine[4]) if len(listLine) > 4 else 0.0
+                            # 获取总张数
+                            total_images = self.params_dict.get("images_num", 0)
 
+                            if 0 <= relative_index < total_images:
+                                # === 解析核心修正 ===
+                                # 你的 Dozor 输出格式: [Image, Spots, Score, Resolution]
+                                # Index:                 0      1      2       3
+                                
+                                spots = int(listLine[1])
+                                
+                                # Score 在第 3 列 (索引 2)
+                                score = float(listLine[2]) if len(listLine) > 2 else 0.0
+                                
+                                # Resolution 在第 4 列 (索引 3)
+                                resolution = float(listLine[3]) if len(listLine) > 3 else 0.0
+                                
                                 # 更新数据
                                 self.results_raw["score"][relative_index] = score
                                 self.results_raw["spots_num"][relative_index] = spots
                                 self.results_raw["spots_resolution"][relative_index] = resolution
                                 
+                                # 发送信号
                                 self.align_processing_results(relative_index, relative_index)
                                 self.emit("processingResultsUpdate", False)
+                                
+                                # 调试日志：看到这行说明解析成功了！
+                                # logging.getLogger("HWR").info(f"Parsed Img {img_num}: Score={score}")
+
                     except Exception as e:
+                        logging.getLogger("HWR").error(f"SimpleDozor: Parse Error on line '{line.strip()}': {e}")
                         pass
         except Exception as e:
             logging.getLogger("HWR").error(f"SimpleDozor: Monitor loop error: {e}")
