@@ -2,7 +2,7 @@
 
 
 
-    <subdir1-1>Sample-1-01/</subdir1-1>
+    <!-- <subdir1-1>Sample-1-01/</subdir1-1>
     <prefix1-1>Sample-1-01</prefix1-1>
     <subdir1-2>Sample-1-02/</subdir1-2>
     <prefix1-2>Sample-1-02</prefix1-2>
@@ -231,6 +231,6 @@
     <subdir7-15>Sample-7-15</subdir7-15>
     <prefix7-15>Sample-7-15</prefix7-15>
     <subdir7-16>Sample-7-16</subdir7-16>
-    <prefix7-16>Sample-7-16</prefix7-16>
+    <prefix7-16>Sample-7-16</prefix7-16> -->
 
 </equipment>

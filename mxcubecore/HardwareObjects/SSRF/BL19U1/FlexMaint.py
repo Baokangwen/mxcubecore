@@ -748,6 +748,8 @@ class FlexMaint(Equipment):
             "pullingState": (not self._running) and self._powered and _ready,
             "reset": True,
             "abort": True if self._running else False,
+            "import_csv": (not self._running) and self._powered and _ready,
+            "reset_sc_contents": (not self._running) and self._powered and _ready,
         }
 
         message = self._message
@@ -832,7 +834,8 @@ class FlexMaint(Equipment):
                     ["dry", "Dry", "Actions", "Dry (trajectory)"],
                     ["synchronize","Synchronize_with_camerman","Actions","Synchronize_with_camerman (trajectory)"],
                     # ["soak", "Soak", "Actions", "Soak (trajectory)"],
-                    ["estop","E-STOP","Actions","emergency stop (trajectory)"]
+                    ["estop","E-STOP","Actions","emergency stop (trajectory)"],
+                    ["import_csv", "Import CSV", "Actions", "Import samples from CSV"],
                 ],
             ],
             [
@@ -844,6 +847,7 @@ class FlexMaint(Equipment):
                         "Clear Info in Robot Memory "
                         " (includes info about sample on Diffr)",
                     ],
+                    ["reset_sc_contents", "Reset Names", "Recovery", "Clear sample names"],
                     # ["reset", "Reset Message", "Reset Cats State"],
                     ["back", "Cryo_Back", "Reset Cats State"],
                     ["safe", "Home_clear", "Reset Cats State"],
@@ -986,6 +990,22 @@ class FlexMaint(Equipment):
             )
             self._do_synchronize()
 
+        if cmd_name == "import_csv":
+            SC = HWR.beamline.sample_changer
+            if hasattr(SC, "import_samples_from_csv"):
+                # 可以传入 args 作为路径，或者使用默认路径
+                SC.import_samples_from_csv()
+                logging.getLogger("user_level_log").info("Command: Import CSV executed")
+            else:
+                logging.getLogger("user_level_log").error("SC object has no import_csv method")
+
+        # --- 新增 Reset Names 逻辑 ---
+        # 如果你在 get_cmd_info 里用了 "reset_sc_contents"
+        if cmd_name == "reset_sc_contents":
+            SC = HWR.beamline.sample_changer
+            if hasattr(SC, "clear_and_reset_samples"):
+                SC.clear_and_reset_samples()
+                logging.getLogger("user_level_log").info("Command: Sample names reset")
 
 
         return True
