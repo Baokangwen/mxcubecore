@@ -602,8 +602,8 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             snapshot_path = self.current_dc_parameters['xtalSnapshotFullPath1']
             logging.getLogger('HWR').debug(f"the path of snapshot: {snapshot_path}")
             snapshot_name = snapshot_path.split('/')[-1]
-            snapshot_path_in_ppu2 = "/datafarm"+saving_directory+"/"
-            snapshot_path_in_ppu2_withname = "/datafarm"+saving_directory+"/"+snapshot_name
+            snapshot_path_in_ppu2 = f"/datafarm/{proposal_user}{saving_directory}/"
+            snapshot_path_in_ppu2_withname = f"/datafarm/{proposal_user}{saving_directory}/{snapshot_name}"
 
             user_name = self.getProperty("ppu2_user")
             remote_host_ip = self.getProperty("ppu2_ip")
