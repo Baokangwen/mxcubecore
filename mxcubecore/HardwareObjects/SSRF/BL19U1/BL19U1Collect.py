@@ -591,6 +591,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         # put snapshot to be with raw data cbf
 
         if self.current_dc_parameters['take_snapshots']:
+            proposal_code = HWR.beamline.session.proposal_code
+            proposal_number = HWR.beamline.session.proposal_number
+            proposal_user = f"{proposal_code}{proposal_number}"
+
+            logging.getLogger("HWR").info(f"proposal_code: {proposal_code}")
+            logging.getLogger("HWR").info(f"proposal_number: {proposal_number}")
+            logging.getLogger("HWR").info(f"proposal_user: {proposal_user}")
+
             snapshot_path = self.current_dc_parameters['xtalSnapshotFullPath1']
             logging.getLogger('HWR').debug(f"the path of snapshot: {snapshot_path}")
             snapshot_name = snapshot_path.split('/')[-1]
