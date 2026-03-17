@@ -392,6 +392,20 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             "[COLLECT] Preparing data collection with parameters: %s"
             % self.current_dc_parameters
         )
+        # =========================================================
+        # 拦截并重写全局存储路径，注入课题组名称
+        proposal_code = HWR.beamline.session.proposal_code
+        proposal_number = HWR.beamline.session.proposal_number
+        proposal_user = f"{proposal_code}{proposal_number}"
+
+        file_params = self.current_dc_parameters["fileinfo"]
+        
+        # 将默认的 /data/ 替换为 /datafarm/{proposal_user}/
+        # 例如：/data/RAW_DATA/... 会变成 /datafarm/A1234/RAW_DATA/...
+        file_params["directory"] = file_params["directory"].replace("/data/", f"/datafarm/{proposal_user}/")
+        file_params["process_directory"] = file_params["process_directory"].replace("/data/", f"/datafarm/{proposal_user}/")
+        file_params["archive_directory"] = file_params["archive_directory"].replace("/data/", f"/datafarm/{proposal_user}/")
+        # =========================================================
 
         # 为了插入数据库数据，先声明一些变量
         wl = None
