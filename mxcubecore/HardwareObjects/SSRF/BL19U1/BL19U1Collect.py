@@ -543,7 +543,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
         # 3. 🌟 重新拼装 _filename，把 proposal_user 塞到最前面！
         _filename = '/', proposal_user, _subdir, file_parameters["filename"]
-        
+
         logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename}')
 
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
@@ -608,8 +608,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             snapshot_path = self.current_dc_parameters['xtalSnapshotFullPath1']
             logging.getLogger('HWR').debug(f"the path of snapshot: {snapshot_path}")
             snapshot_name = snapshot_path.split('/')[-1]
-            snapshot_path_in_ppu2 = f"/datafarm/{proposal_user}{saving_directory}/"
-            snapshot_path_in_ppu2_withname = f"/datafarm/{proposal_user}{saving_directory}/{snapshot_name}"
+            # 安全剔除 saving_directory 可能自带的 /ramdisk 前缀，提取出纯净的 /2026cbftest/11/
+            subdir = saving_directory.replace("/ramdisk", "")
+            
+            # /datafarm/ramdisk/opid291/2026
+            snapshot_path_in_ppu2 = f"/datafarm/ramdisk/{proposal_user}{subdir}/"
+            snapshot_path_in_ppu2_withname = f"{snapshot_path_in_ppu2}{snapshot_name}"
 
             user_name = self.getProperty("ppu2_user")
             remote_host_ip = self.getProperty("ppu2_ip")
