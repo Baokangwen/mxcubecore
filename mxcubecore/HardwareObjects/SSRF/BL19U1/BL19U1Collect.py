@@ -536,7 +536,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         _subdir = file_parameters["directory"].split('RAW_DATA')[1]
         _date = datetime.now().strftime('%Y%m%d')
         # _filename = '/', _date, _subdir, '/', file_parameters["filename"]
-        _filename = _subdir, '/', file_parameters["filename"]
+        #_filename = _subdir, '/', file_parameters["filename"]
+        proposal_code = HWR.beamline.session.proposal_code
+        proposal_number = HWR.beamline.session.proposal_number
+        proposal_user = f"{proposal_code}{proposal_number}"
+
+        # 3. 🌟 重新拼装 _filename，把 proposal_user 塞到最前面！
+        _filename = '/', proposal_user, _subdir, file_parameters["filename"]
+        
         logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename}')
 
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
