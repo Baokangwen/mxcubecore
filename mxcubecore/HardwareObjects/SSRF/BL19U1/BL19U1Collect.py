@@ -612,7 +612,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             subdir = saving_directory.replace("/ramdisk", "")
             
             # /datafarm/ramdisk/opid291/2026
-            snapshot_path_in_ppu2 = f"/datafarm/ramdisk/{proposal_user}{subdir}/"
+            snapshot_path_in_ppu2 = f"/datafarm/ramdisk/{subdir}/"
             snapshot_path_in_ppu2_withname = f"{snapshot_path_in_ppu2}{snapshot_name}"
 
             user_name = self.getProperty("ppu2_user")
