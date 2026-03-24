@@ -1,11 +1,7 @@
 <object class="ISPyBClient">
   <object hwrid="/lims_rest_ssrf" role="lims_rest"/>
-  <ws_root>
-    http://10.30.61.230/ispyb/ispyb-ws/ispybWS/
-  </ws_root>
-  <base_result_url>
-    http://10.30.61.230/ispyb/
-  </base_result_url>
+  <ws_root>http://10.30.61.230/ispyb/ispyb-ws/ispybWS/</ws_root>
+  <base_result_url>http://10.30.61.230/ispyb/</base_result_url>
   <ws_username>zhangsan1</ws_username>
   <ws_password>zhangsan</ws_password>
 <!--  user/proposal-->
