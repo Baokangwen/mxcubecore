@@ -16,6 +16,11 @@
       <ispyb>zhangsan1</ispyb>
       <gui>mx</gui>
     </proposal>
+    <proposal>
+      <code>opid291</code>
+      <ispyb>opid291</ispyb>
+      <gui>mx</gui>
+    </proposal>
   </proposals>
 
   <inhouse_users>
