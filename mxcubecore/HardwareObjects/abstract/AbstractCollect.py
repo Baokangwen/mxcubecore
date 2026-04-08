@@ -615,7 +615,12 @@ class AbstractCollect(HardwareObject, object):
             params["slitGapHorizontal"] = hor_gap
             params["slitGapVertical"] = vert_gap
             try:
-                HWR.beamline.lims.update_data_collection(params)
+                collection_id = HWR.beamline.lims.update_data_collection(params)
+                logging.getLogger("HWR").info(
+                    "==== Update data collection in LIMS, collection_id: %s" % collection_id
+                )
+                if collection_id:
+                    self.current_dc_parameters["collection_id"] = collection_id
             except BaseException:
                 logging.getLogger("HWR").exception(
                     "Could not update data collection in LIMS"

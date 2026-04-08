@@ -1,0 +1,48 @@
+{
+    "dataCollectionId": 2586049,
+    "diffractionPlan": {
+        "aimedCompleteness": 0.99,
+        "aimedIOverSigmaAtHighestResolution": 1.0,
+        "aimedMultiplicity": 4.0,
+        "aimedResolution": 0.0,
+        "anomalousData": "false",
+        "complexity": "none",
+        "detectorDistanceMax": 820.0,
+        "detectorDistanceMin": 155.0,
+        "forcedSpaceGroup": null,
+        "maxExposureTimePerDataCollection": 30.0,
+        "strategyOption": "-low never"
+    },
+    "experimentalCondition": {
+        "beam": {
+            "flux": 648336100000.0,
+            "minExposureTimePerImage": 0.05,
+            "size": {
+                "x": 0.05,
+                "y": 0.05
+            },
+            "transmission": 100.0,
+            "wavelength": 0.9537239
+        },
+        "goniostat": {
+            "maxOscillationSpeed": 360.0,
+            "minOscillationWidth": 0.05
+        }
+    },
+    "sample": {
+        "radiationDamageModelBeta": 1e-06,
+        "radiationDamageModelGamma": 6e-08,
+        "shape": 1.0,
+        "size": {
+            "x": 0.05,
+            "y": 0.05,
+            "z": 0.05
+        },
+        "susceptibility": 1.0
+    },
+    "token": "59147522d3",
+    "imagePath": [
+
+    ],
+    "processDirectory":""
+}

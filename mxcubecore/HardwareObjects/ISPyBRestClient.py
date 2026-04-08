@@ -46,7 +46,7 @@ class ISPyBRestClient(HardwareObject):
 
         self.__rest_root = self.get_property("restRoot").strip()
         self.__rest_username = self.get_property("restUserName").strip()
-        self.__rest_password = self.get_property("restPass").strip()
+        self.__rest_password = str(self.get_property("restPass")).strip()
         self.__site = self.get_property("site").strip()
 
         try:

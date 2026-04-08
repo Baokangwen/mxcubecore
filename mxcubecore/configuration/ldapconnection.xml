@@ -1,6 +1,6 @@
 <procedure class="LdapLogin">
-  <ldaphost>ldap.esrf.fr</ldaphost>
-  <ldapport>389</ldapport>
+  <ldaphost>10.30.61.223</ldaphost>
+  <ldapport>3890</ldapport>
   <ldapou>people</ldapou>
 </procedure>
 

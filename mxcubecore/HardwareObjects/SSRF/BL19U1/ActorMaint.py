@@ -326,13 +326,15 @@ class ActorMaint(Equipment):
         """
         print("open or close lid function")
         if state:
-            self._ifcmdSucceeded = self._do_cmdOpenlid()
+            # self._ifcmdSucceeded = self._do_cmdOpenlid()
+            self._ifcmdSucceeded = True
 
 
         elif state == False:
             HWR.beamline.sample_changer.change_ifcloseLid_inBeginning_state(True)
             self.change_message_error("Nothing to report")
-            self._ifcmdSucceeded  = self._do_cmdCloselid()
+            # self._ifcmdSucceeded  = self._do_cmdCloselid()
+            self._ifcmdSucceeded  = True
 
         print("self._ifcmdSucceeded:", self._ifcmdSucceeded, type(self._ifcmdSucceeded))
         if (type(self._ifcmdSucceeded) is Exception) or (type(self._ifcmdSucceeded) is OSError) or (

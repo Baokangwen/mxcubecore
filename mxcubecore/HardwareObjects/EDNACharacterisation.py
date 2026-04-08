@@ -3,6 +3,7 @@ import copy
 import logging
 import binascii
 import subprocess
+import json
 
 from mxcubecore.model import queue_model_objects as qmo
 from mxcubecore.model import queue_model_enumerables as qme
@@ -71,13 +72,13 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         diff_plan.setStrategyOption(XSDataString(new_strategy_option))
 
-    def _run_edna(self, input_file, results_file, process_directory):
+    def _run_edna(self, input_file, results_file, process_directory, task_name):
         """Starts EDNA"""
         msg = "Starting EDNA characterisation using xml file %s" % input_file
         logging.getLogger("queue_exec").info(msg)
 
-        args = (self.start_edna_command, input_file, results_file, process_directory)
-        subprocess.call("%s %s %s %s" % args, shell=True)
+        args = (self.start_edna_command, input_file, results_file, process_directory, "Characterisation")
+        subprocess.call("%s %s %s %s %s" % args, shell=True)
 
         self.result = None
         if os.path.exists(results_file):
@@ -242,6 +243,216 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         return edna_input
 
+    def input_from_params_json(self, data_collection, char_params):
+        # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
+
+        # edna_input = self.read_json_file(self.edna_default_input)
+        edna_input = json.loads(self.edna_default_input)
+
+        if data_collection.id:
+            # edna_input.setDataCollectionId(XSDataInteger(data_collection.id))
+            key_path = ['dataCollectionId']
+            self.update_json_data(edna_input, key_path, data_collection.id)
+
+        # Beam object
+        # beam = edna_input.getExperimentalCondition().getBeam()
+        beam = edna_input['experimentalCondition']['beam']
+
+        try:
+            transmission = HWR.beamline.transmission.get_value()
+            # beam.setTransmission(XSDataDouble(transmission))
+            key_path = ['experimentalCondition', 'beam', 'transmission']
+            self.update_json_data(edna_input, key_path, transmission)
+        except AttributeError:
+            import traceback
+
+            logging.getLogger("HWR").debug(
+                "EDNACharacterisation. transmission not saved "
+            )
+            logging.getLogger("HWR").debug(traceback.format_exc())
+
+        try:
+            wavelength = HWR.beamline.energy.get_wavelength()
+            # beam.setWavelength(XSDataWavelength(wavelength))
+            key_path = ['experimentalCondition', 'beam', 'wavelength']
+            self.update_json_data(edna_input, key_path, wavelength)
+        except AttributeError:
+            pass
+
+        try:
+            # beam.setFlux(XSDataFlux(HWR.beamline.flux.get_value()))
+            key_path = ['experimentalCondition', 'beam', 'flux']
+            self.update_json_data(edna_input, key_path, HWR.beamline.flux.get_value())
+        except AttributeError:
+            pass
+
+        try:
+            min_exp_time = self.collect_obj.detector_hwobj.get_exposure_time_limits()[0]
+            # beam.setMinExposureTimePerImage(XSDataTime(min_exp_time))
+
+            key_path = ['experimentalCondition', 'beam', 'minExposureTimePerImage']
+            self.update_json_data(edna_input, key_path, min_exp_time)
+        except AttributeError:
+            pass
+
+        try:
+            beamsize = self.collect_obj.beam_info_hwobj.get_beam_size()
+
+            if None not in beamsize:
+                # beam.setSize(
+                #     XSDataSize(
+                #         x=XSDataLength(float(beamsize[0])),
+                #         y=XSDataLength(float(beamsize[1])),
+                #     )
+                # )
+                key_path = ['experimentalCondition', 'beam', 'size', 'x']
+                self.update_json_data(edna_input, key_path, float(beamsize[0]))
+
+                key_path = ['experimentalCondition', 'beam', 'size', 'y']
+                self.update_json_data(edna_input, key_path, float(beamsize[1]))
+        except AttributeError:
+            pass
+
+        # Optimization parameters
+        # diff_plan = edna_input.getDiffractionPlan()
+        #
+        # aimed_i_sigma = XSDataDouble(char_params.aimed_i_sigma)
+        # aimed_completness = XSDataDouble(char_params.aimed_completness)
+        # aimed_multiplicity = XSDataDouble(char_params.aimed_multiplicity)
+        # aimed_resolution = XSDataDouble(char_params.aimed_resolution)
+        # 
+        # complexity = char_params.strategy_complexity
+        # complexity = XSDataString(qme.STRATEGY_COMPLEXITY[complexity])
+
+        permitted_phi_start = XSDataAngle(char_params.permitted_phi_start)
+        _range = char_params.permitted_phi_end - char_params.permitted_phi_start
+        rotation_range = XSDataAngle(_range)
+
+        if char_params.aimed_i_sigma:
+            # diff_plan.setAimedIOverSigmaAtHighestResolution(aimed_i_sigma)
+            key_path = ['diffractionPlan', 'aimedIOverSigmaAtHighestResolution']
+            self.update_json_data(edna_input, key_path, char_params.aimed_i_sigma)
+
+        if char_params.aimed_completness:
+            # diff_plan.setAimedCompleteness(aimed_completness)
+            key_path = ['diffractionPlan', 'aimedCompleteness']
+            self.update_json_data(edna_input, key_path, char_params.aimed_completness)
+
+        if char_params.use_aimed_multiplicity:
+            # diff_plan.setAimedMultiplicity(aimed_multiplicity)
+            key_path = ['diffractionPlan', 'aimedMultiplicity']
+            self.update_json_data(edna_input, key_path, char_params.aimed_multiplicity)
+
+        if char_params.use_aimed_resolution:
+            # diff_plan.setAimedResolution(aimed_resolution)
+            key_path = ['diffractionPlan', 'aimedResolution']
+            self.update_json_data(edna_input, key_path, char_params.aimed_resolution)
+
+        # diff_plan.setComplexity(complexity)
+
+        complexity = char_params.strategy_complexity
+        complexity = XSDataString(qme.STRATEGY_COMPLEXITY[complexity])
+        key_path = ['diffractionPlan', 'aimedResolution']
+        self.update_json_data(edna_input, key_path, char_params.aimed_resolution)
+
+        # if char_params.use_permitted_rotation:
+            # diff_plan.setUserDefinedRotationStart(permitted_phi_start)
+            # diff_plan.setUserDefinedRotationRange(rotation_range)
+
+
+        # Vertical crystal dimension
+        # sample = edna_input.getSample()
+        # sample.getSize().setY(XSDataLength(char_params.max_crystal_vdim))
+        # sample.getSize().setZ(XSDataLength(char_params.min_crystal_vdim))
+
+        key_path = ['sample', 'size', 'y']
+        self.update_json_data(edna_input, key_path, char_params.max_crystal_vdim)
+        key_path = ['sample', 'size', 'z']
+        self.update_json_data(edna_input, key_path, char_params.min_crystal_vdim)
+
+        # Radiation damage model
+        # sample.setSusceptibility(XSDataDouble(char_params.rad_suscept))
+        # sample.setChemicalComposition(None)
+        # sample.setRadiationDamageModelBeta(XSDataDouble(char_params.beta / 1e6))
+        # sample.setRadiationDamageModelGamma(XSDataDouble(char_params.gamma / 1e6))
+        key_path = ['sample', 'susceptibility']
+        self.update_json_data(edna_input, key_path, char_params.rad_suscept)
+        key_path = ['sample', 'chemicalComposition']
+        self.update_json_data(edna_input, key_path, None)
+        key_path = ['sample', 'radiationDamageModelBeta']
+        self.update_json_data(edna_input, key_path, char_params.beta / 1e6)
+        key_path = ['sample', 'radiationDamageModelGamma']
+        self.update_json_data(edna_input, key_path, char_params.gamma / 1e6)
+
+        # diff_plan.setForcedSpaceGroup(XSDataString(char_params.space_group))
+        key_path = ['diffractionPlan', 'forcedSpaceGroup']
+        self.update_json_data(edna_input, key_path, char_params.space_group)
+
+        # Characterisation type - Routine DC
+        if char_params.use_min_dose:
+            pass
+
+        if char_params.use_min_time:
+            # time = XSDataTime(char_params.min_time)
+            # diff_plan.setMaxExposureTimePerDataCollection(time)
+            key_path = ['diffractionPlan', 'maxExposureTimePerDataCollection']
+            self.update_json_data(edna_input, key_path, char_params.min_time)
+
+        # Account for radiation damage
+        if char_params.induce_burn:
+            # self._modify_strategy_option(diff_plan, "-DamPar")
+            key_path = ['diffractionPlan', 'strategyOption']
+            self.update_json_data(edna_input, key_path, "-DamPar")
+
+        # Characterisation type - SAD
+        if char_params.opt_sad:
+            if char_params.auto_res:
+                # diff_plan.setAnomalousData(XSDataBoolean(True))
+                key_path = ['diffractionPlan', 'anomalousData']
+                self.update_json_data(edna_input, key_path, "true")
+            else:
+                # diff_plan.setAnomalousData(XSDataBoolean(False))
+                # self._modify_strategy_option(diff_plan, "-SAD yes")
+                # diff_plan.setAimedResolution(XSDataDouble(char_params.sad_res))
+
+                key_path = ['diffractionPlan', 'anomalousData']
+                self.update_json_data(edna_input, key_path, "false")
+                key_path = ['diffractionPlan', 'strategyOption']
+                self.update_json_data(edna_input, key_path, "-SAD yes")
+                key_path = ['diffractionPlan', 'aimedResolution']
+                self.update_json_data(edna_input, key_path, char_params.sad_res)
+        else:
+            # diff_plan.setAnomalousData(XSDataBoolean(False))
+            key_path = ['diffractionPlan', 'anomalousData']
+            self.update_json_data(edna_input, key_path, "false")
+
+        # Data set
+        # data_set = XSDataMXCuBEDataSet()
+        acquisition_parameters = data_collection.acquisitions[0].acquisition_parameters
+        path_template = data_collection.acquisitions[0].path_template
+        # path_str = os.path.join(
+        #     path_template.directory, path_template.get_image_file_name()
+        # )
+        # use data saving directory
+        path_str = os.path.join(
+            HWR.beamline.detector.saving_directory, path_template.get_image_file_name()
+        )
+        # for img_num in range(int(acquisition_parameters.num_images)):
+        #     image_file = XSDataFile()
+        #     path = XSDataString()
+        #     path.set_value(path_str % (img_num + 1))
+        #     image_file.setPath(path)
+        #     data_set.addImageFile(image_file)
+
+        for img_num in range(int(acquisition_parameters.num_images)):
+            path = path_str % (img_num + 1)
+            edna_input['imagePath'].append(path)
+
+        # edna_input.addDataSet(data_set)
+        # edna_input.process_directory = path_template.process_directory
+        edna_input['processDirectory'] = path_template.process_directory
+        return edna_input
+
     def characterise(self, edna_input):
         """
         Args:
@@ -250,33 +461,41 @@ class EDNACharacterisation(AbstractCharacterisation):
         Returns:
             (str) The Characterisation result
         """
+        print("edna input: ", edna_input)
         self.processing_done_event.set()
         self.prepare_input(edna_input)
-        path = edna_input.process_directory
+        # path = edna_input.process_directory
+        path = edna_input['processDirectory']
 
         # if there is no data collection id, the id will be a random number
         # this is to give a unique number to the EDNA input and result files;
         # something more clever might be done to give a more significant
         # name, if there is no dc id.
         try:
-            dc_id = edna_input.getDataCollectionId().getValue()
+            # dc_id = edna_input.getDataCollectionId().getValue()
+            dc_id = edna_input["dataCollectionId"]
         except Exception:
             dc_id = id(edna_input)
 
         token = self.generate_new_token()
-        edna_input.token = XSDataString(token)
+        # edna_input.token = XSDataString(token)
+        key_path = ['token']
+        self.update_json_data(edna_input, key_path, token)
 
-        if hasattr(edna_input, "process_directory"):
-            edna_input_file = os.path.join(path, "EDNAInput_%s.xml" % dc_id)
-            edna_input.exportToFile(edna_input_file)
+        # if hasattr(edna_input, "processDirectory"):
+        if "processDirectory" in edna_input:
+            # edna_input_file = os.path.join(path, "EDNAInput_%s.xml" % dc_id)
+            edna_input_file = os.path.join(path, "EDNAInput_%s.json" % dc_id)
+            # edna_input.exportToFile(edna_input_file)
+            self.save_json_file(edna_input_file, edna_input)
             edna_results_file = os.path.join(path, "EDNAOutput_%s.xml" % dc_id)
 
             if not os.path.isdir(path):
                 os.makedirs(path)
         else:
             raise RuntimeError("No process directory specified in edna_input")
-
-        self.result = self._run_edna(edna_input_file, edna_results_file, path)
+        task_name = "Characterisation"
+        self.result = self._run_edna(edna_input_file, edna_results_file, path, task_name)
 
         self.processing_done_event.clear()
         return self.result
@@ -422,9 +641,10 @@ class EDNACharacterisation(AbstractCharacterisation):
             (queue_model_objects.CharacterisationsParameters) object with default
             parameters.
         """
-        edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
-        diff_plan = edna_input.getDiffractionPlan()
+        # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
+        edna_input = self.read_json_file(self.edna_default_input)
 
+        diff_plan = edna_input.getDiffractionPlan()
         edna_sample = edna_input.getSample()
         char_params = qmo.CharacterisationParameters()
         char_params.experiment_type = qme.EXPERIMENT_TYPE.OSC
@@ -438,6 +658,10 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         char_params.use_aimed_multiplicity = False
         try:
+            char_params.aimed_i_sigma = (
+                diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
+            )
+            char_params.aimed_completness = diff_plan.getAimedCompleteness().getValue()
             char_params.aimed_i_sigma = (
                 diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
             )
@@ -480,8 +704,104 @@ class EDNACharacterisation(AbstractCharacterisation):
 
         return char_params
 
+    def get_default_characterisation_parameters_json(self):
+        """
+        Returns:
+            (queue_model_objects.CharacterisationsParameters) object with default
+            parameters.
+        """
+        # edna_input = XSDataInputMXCuBE.parseString(self.edna_default_input)
+        # edna_input = self.read_json_file(self.edna_default_input)
+        edna_input = json.loads(self.edna_default_input)
+
+        # diff_plan = edna_input.getDiffractionPlan()
+        # edna_sample = edna_input.getSample()
+        char_params = qmo.CharacterisationParameters()
+        char_params.experiment_type = qme.EXPERIMENT_TYPE.OSC
+
+        # Optimisation parameters
+        char_params.use_aimed_resolution = False
+        try:
+            # char_params.aimed_resolution = diff_plan.getAimedResolution().getValue()
+            char_params.aimed_resolution = edna_input["diffractionPlan"]["aimedResolution"]
+        except Exception:
+            char_params.aimed_resolution = None
+
+        char_params.use_aimed_multiplicity = False
+        try:
+            # char_params.aimed_i_sigma = (
+            #     diff_plan.getAimedIOverSigmaAtHighestResolution().getValue()
+            # )
+            # char_params.aimed_completness = diff_plan.getAimedCompleteness().getValue()
+            char_params.aimed_i_sigma = (
+                edna_input["diffractionPlan"]["aimedIOverSigmaAtHighestResolution"]
+            )
+            char_params.aimed_completness =  edna_input["diffractionPlan"]["aimedCompleteness"]
+        except Exception:
+            char_params.aimed_i_sigma = None
+            char_params.aimed_completness = None
+
+        char_params.strategy_complexity = 0
+        char_params.induce_burn = False
+        char_params.use_permitted_rotation = False
+        char_params.permitted_phi_start = 0.0
+        char_params.permitted_phi_end = 360
+        char_params.low_res_pass_strat = False
+
+        # Crystal
+        # char_params.max_crystal_vdim = edna_sample.getSize().getY().getValue()
+        # char_params.min_crystal_vdim = edna_sample.getSize().getZ().getValue()
+        char_params.max_crystal_vdim = edna_input["sample"]["size"]["y"]
+        char_params.min_crystal_vdim = edna_input["sample"]["size"]["z"]
+
+        char_params.max_crystal_vphi = 90
+        char_params.min_crystal_vphi = 0.0
+        char_params.space_group = ""
+
+        # Characterisation type
+        char_params.use_min_dose = True
+        char_params.use_min_time = False
+        char_params.min_dose = 30.0
+        char_params.min_time = 0.0
+        char_params.account_rad_damage = True
+        char_params.auto_res = True
+        char_params.opt_sad = False
+        char_params.sad_res = 0.5
+        char_params.determine_rad_params = False
+        char_params.burn_osc_start = 0.0
+        char_params.burn_osc_interval = 3
+
+        # Radiation damage model
+        # char_params.rad_suscept = edna_sample.getSusceptibility().getValue()
+        char_params.rad_suscept = edna_input["sample"]["susceptibility"]
+        char_params.beta = 1
+        char_params.gamma = 0.06
+
+        return char_params
     def generate_new_token(self):
         # See: https://wyattbaldwin.com/2014/01/09/generating-random-tokens-in-python/
         token = binascii.hexlify(os.urandom(5)).decode("utf-8")
         SecureXMLRpcRequestHandler.setReferenceToken(token)
         return token
+
+    def read_json_file(self, file_path):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return json.load(file)
+
+    # 递归更新JSON数据
+    def update_json_data(self, json_data, key_path, value):
+        # key_path是一个列表，包含了要更新的键的完整路径
+        if len(key_path) == 1:
+            # 最后一级，直接更新值
+            json_data[key_path[0]] = value
+        else:
+            # 非最后一级，递归更新
+            key = key_path[0]
+            if key not in json_data:
+                json_data[key] = {}  # 如果键不存在，创建一个新字典
+            self.update_json_data(json_data[key], key_path[1:], value)
+
+    # 保存JSON数据到文件
+    def save_json_file(self, file_path, json_data):
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(json_data, file, ensure_ascii=False, indent=4)

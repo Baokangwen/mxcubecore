@@ -46,6 +46,10 @@
       <code>mxihr</code>
       <number>6</number>
     </proposal>
+      <proposal>
+      <code>manager</code>
+      <number>1</number>
+    </proposal>
   </inhouse_users>
 
   <file_info>

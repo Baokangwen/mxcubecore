@@ -81,6 +81,7 @@ class AbstractDetector(HardwareObject):
         self._width = None  # [pixel]
         self._height = None  # [pixel]
         self._metadata = {}
+        self.saving_directory = ''
 
     def init(self):
         """Initialise some common paramerters"""

@@ -229,11 +229,12 @@ class CharacterisationQueueEntry(BaseQueueEntry):
         self.get_view().setText(1, "Characterising")
         log.info("Characterising, please wait ...")
         char = self.get_data_model()
+        print("==== Characterising", char)
         reference_image_collection = char.reference_image_collection
         characterisation_parameters = char.characterisation_parameters
 
         if HWR.beamline.characterisation is not None:
-            edna_input = HWR.beamline.characterisation.input_from_params(
+            edna_input = HWR.beamline.characterisation.input_from_params_json(
                 reference_image_collection, characterisation_parameters
             )
 

@@ -57,7 +57,7 @@ _objects:
     #- diffractometer: bl19u/md2.xml
     - diffractometer: bl19u/udiff.xml # true use
     - bzoom: bl19u/udiff/bzoom_video.xml
-    - lims: lims.xml
+    - lims: lims_ssrf.xml
     - sample_view: bl19u/sample_view.xml
 #    - sample_view: sample_view.xml #mockup use
     - queue_manager: bl19u/queue.xml
@@ -81,7 +81,8 @@ _objects:
     # Analysis:
     #- offline_processing: auto_processing.xml
     #- online_processing: parallel_processing.xml
-    - characterisation: characterisation.xml
+    - offline_processing: bl19u/offline-processing.xml
+    - characterisation: bl19u/characterisation.xml
 
     # - beam_realign: # Skipped - optional
 
