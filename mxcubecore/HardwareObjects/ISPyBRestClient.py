@@ -91,7 +91,8 @@ class ISPyBRestClient(HardwareObject):
         try:
             data = {"login": str(user), "password": str(password)}
             response = post(auth_url, data=data)
-
+            print(f"HTTP Status Code: {response.status_code}")
+            print(f"HTTP Response Text: {response.text}")
             self.__rest_token = response.json().get("token")
             self.__rest_token_timestamp = datetime.now()
             self.__rest_username = user
