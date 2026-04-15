@@ -587,6 +587,7 @@ class AbstractCollect(HardwareObject, object):
         Descript. :
         """
         params = self.current_dc_parameters
+        print(f"update_data_collection_in_lims: {params}")
         if HWR.beamline.lims and not params["in_interleave"]:
             params["flux"] = HWR.beamline.flux.get_value()
             params["flux_end"] = params["flux"]

@@ -835,7 +835,7 @@ class ISPyBClient(HardwareObject):
         """
         if self._disabled:
             return (0, 0, 0)
-
+        print(f"store_data_collection: {mx_collection} @@@ {bl_config}")
         if self._collection:
             logging.getLogger("HWR").debug(
                 "Storing data collection in lims. data to store: %s"
@@ -872,6 +872,7 @@ class ISPyBClient(HardwareObject):
             collection_id = self._collection.service.storeOrUpdateDataCollection(
                 data_collection
             )
+            print("store_data_collection: collection_id: %s" % collection_id)
             logging.getLogger("HWR").debug(
                 "  - storing data collection ok. collection id : %s" % collection_id
             )
@@ -1653,7 +1654,7 @@ class ISPyBClient(HardwareObject):
             group = ISPyBValueFactory().dcg_from_dc_params(
                 self._collection, mx_collection
             )
-
+            print(">>> 准备发送的 group 数据: ", group)
             group_id = self._collection.service.storeOrUpdateDataCollectionGroup(group)
 
             return group_id
