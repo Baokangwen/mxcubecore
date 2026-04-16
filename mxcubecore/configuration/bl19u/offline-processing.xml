@@ -1,8 +1,5 @@
-<object class="mxcubecore.HardwareObjects.SSRF.BL19U1.BL19U1OfflineProcessing">
-  <programs>
-    <program>
-      <executable>ssh username@server_ip /home/mxcube19u1/mxcube/mxcubecore/edna_autoproc_script.sh</executable>
-      <event>after</event>
-    </program>
-  </programs>
+<object class="mxcubecore.HardwareObjects.SSRF.BL19U1.OfflineProcessing">
+  <processing_command>/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/run_edna2_offline_wrapper.sh</processing_command>
+  <run_as_mockup>False</run_as_mockup>
+  <edna_plugin>Characterisation</edna_plugin> 
 </object>
