@@ -72,7 +72,7 @@ _objects:
 #    -tset: test.xml # mockup use
     - xrf_spectrum: bl19u/xrf.xml
 #    - energy_scan: bl19u/energyscan.xml
-#    - energy_scan: energyscan.xml  #mockup use
+#    - energy_scan: energyscan.xml
     #- gphl_connection: gphl/gphl-setup.yml
     #- gphl_workflow: gphl/gphl-workflow.yml
     - xray_centring: xray_centring2.yml

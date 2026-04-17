@@ -171,8 +171,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         """
         Descript. : go to middle of grid shape
         """
-        import pdb
-        pdb.set_trace()
         logging.getLogger("HWR").info("[COLLECT] Moving to center position")
         shape = HWR.beamline.sample_view.get_selected_shapes()[0].as_dict()
         # screen_coord has top-left corner point and then center point
@@ -191,15 +189,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
     # ---------------------------------------------------------
     # refactor do_collect
     def do_collect(self, owner):
-        # ============== [DNA 验证] ==============
-        import sys, inspect
-        print("\n\n")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("!!! I AM RUNNING FROM: ", __file__)  # 打印当前文件路径
-        print("!!! REAL CLASS LOADED FROM: ", inspect.getfile(self.__class__)) # 打印类实际加载路径
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("\n\n")
-        # ========================================
         """
         Actual collect sequence
         似乎在收集时，这个py文件会先进入此函数
@@ -832,10 +821,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         return self.current_dc_parameters["shape"]
 
     def oscil(self, start, end, exptime, npass, wait=True):
-        # ！！！加在函数第一行！！！
-        logging.getLogger("HWR").info("!!!!!! I AM THE NEW CODE !!!!!!") 
-        print("!!!!!! I AM THE NEW CODE !!!!!!")
-
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         msg = (
             "[COLLECT] Oscillation requested oscillation_parameters: %s"
@@ -876,75 +861,15 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             self.width = "cell_width"
             range_x = shape.get("num_cols") * shape.get(self.width) / 1000.0
             range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
-        #     print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
-        #     while(HWR.beamline.diffractometer.get_state() != "Ready"):
-        #         time.sleep(0.1)
-        #     print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
-        #     print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
-        #     self.log.debug("self.mesh_range in oscil() of BL19U!Collect.py, horizontal_range: %s, vertical_range: %s" %(self.mesh_range['horizontal_range'],self.mesh_range['vertical_range']))
-        #     self.log.debug("HWR.beamline.sample_view.shapes[self.shape].cp_list[1].phiy: %f. " %(HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy))
-        #     mesh_center_topRightPoint_phiy = HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy
-        #     HWR.beamline.diffractometer.oscilScanMesh(
-        #         start,
-        #         end,
-        #         exptime,
-        #         latency_time,
-        #         self.mesh_num_lines,
-        #         self.mesh_total_nb_frames,
-        #         self.mesh_center,
-        #         self.mesh_range,
-        #         mesh_center_topRightPoint_phiy,
-        #         wait=True,
-        #     )
-        #     # 添加结束
-        # else:
-        #     print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
-        #     HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
+            
             print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
             while(HWR.beamline.diffractometer.get_state() != "Ready"):
                 time.sleep(0.1)
-
-            try:
-                logging.getLogger("HWR").info("[RasterFix] Preparing scan coordinates...")
-                
-                # 1. 备份原始坐标 (这个坐标其实就是角点/Start Point)
-                import copy
-                real_center = copy.deepcopy(self.mesh_center)
-                
-                # 2. 获取 Start 值 (兼容 Object 和 Dict)
-                if isinstance(self.mesh_center, dict):
-                    start_phiy = self.mesh_center.get('phiy', 0)
-                    start_phiz = self.mesh_center.get('phiz', 0)
-                else:
-                    start_phiy = getattr(self.mesh_center, 'phiy', 0)
-                    start_phiz = getattr(self.mesh_center, 'phiz', 0)
-
-                # ========================================================
-                # [关键修改] 不再偏移！不再计算几何中心！
-                # 我们认为 start_phiy 就是扫描的起始点
-                # ========================================================
-                center_phiy = start_phiy
-                center_phiz = start_phiz 
-
-                # 6. 赋值回 real_center
-                if isinstance(real_center, dict):
-                    real_center['phiy'] = center_phiy
-                    real_center['phiz'] = center_phiz
-                else:
-                    real_center.phiy = center_phiy
-                    real_center.phiz = center_phiz
-                
-                # 赋值生效
-                self.mesh_center = real_center
-                
-                logging.getLogger("HWR").info(f"[RasterFix] Target Start Point: Phiy={center_phiy:.4f}, Phiz={center_phiz:.4f}")
-
-            except Exception as e:
-                logging.getLogger("HWR").error(f"[RasterFix] CRITICAL ERROR: {e}")
             print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
             print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
-            
-            # 注意：请确保这里调用的是标准的 oscilScanMesh，不要有多余的参数！
+            self.log.debug("self.mesh_range in oscil() of BL19U!Collect.py, horizontal_range: %s, vertical_range: %s" %(self.mesh_range['horizontal_range'],self.mesh_range['vertical_range']))
+            self.log.debug("HWR.beamline.sample_view.shapes[self.shape].cp_list[1].phiy: %f. " %(HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy))
+            mesh_center_topRightPoint_phiy = HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy
             HWR.beamline.diffractometer.oscilScanMesh(
                 start,
                 end,
@@ -954,9 +879,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 self.mesh_total_nb_frames,
                 self.mesh_center,
                 self.mesh_range,
+                mesh_center_topRightPoint_phiy,
                 wait=True,
             )
-            
+            # 添加结束
+        else:
+            print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
+            HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
+
     def _update_task_progress(self):
         logging.getLogger("HWR").info("[COLLECT] update task progress launched")
         num_images = self.current_dc_parameters["oscillation_sequence"][0][
@@ -1003,17 +933,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 logging.getLogger("HWR").info(
                     "[COLLECT] Detector images saved: %s/%s" % (current_frame, num_images)
                 )
-            try:
-                # 检查 QueueManager 里是否还有正在运行的任务
-                # 如果列表为空，说明任务已经结束或崩溃，不能再发信号了
-                queue_entries = HWR.beamline.queue_manager._current_queue_entries
-                if not queue_entries:
-                    logging.getLogger("HWR").debug("[COLLECT] Progress thread aborting: No active queue entries.")
-                    break
-            except Exception:
-                # 如果访问 queue_manager 出错，也直接退出
-                break
-
             self.emit("collectImageTaken", current_frame)
             self.emit("progressStep", round(100 * current_frame / num_images, 1))
             step_count += 1
@@ -1054,85 +973,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         """
         Descript. :
         """
-        # ================================Dorzor Trigger start===================================
-        if self.current_dc_parameters.get("experiment_type") == "Mesh":
-            try:
-                # 1. 安全获取 Dozor 对象
-                if hasattr(HWR.beamline, "online_processing"):
-                    dozor = HWR.beamline.online_processing
-                else:
-                    dozor = self.getObjectByRole("online_processing")
-
-                if dozor:
-                    logging.getLogger("HWR").info("[BL19U1Collect] Collection Finished -> Triggering SimpleDozor...")
-                    
-                    # 获取基础参数
-                    file_info = self.current_dc_parameters["fileinfo"]
-                    osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
-                    
-                    # --- 路径修正 (读取数据的路径: /ramdisk) ---
-                    original_dir = file_info["directory"]
-                    if "RAW_DATA" in original_dir:
-                        relative_path = original_dir.split("RAW_DATA")[1]
-                        raw_dir = "/ramdisk" + relative_path
-                        raw_dir = raw_dir.replace("//", "/")
-                    else:
-                        if "/home/bl19u1/inhouse/idtest0" in original_dir:
-                            raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
-                        else:
-                            raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
-                    logging.getLogger("HWR").info(f"[Path Fix] Real Ramdisk Path: {raw_dir}")
-                    
-                    # --- 模板修正 ---
-                    prefix = file_info["prefix"]
-                    run_number = int(file_info["run_number"])
-                    # 构造模板: bao-bao_1_%05d.cbf (兼容你之前的双前缀逻辑)
-                    template_name = "%s_%d_?????.cbf" % (prefix, run_number)
-                    full_template_path = os.path.join(raw_dir, template_name)
-                    
-                    # --- 起始号修正 ---
-                    start_img_param = int(osc_seq.get("start_image_number", 1))
-                    real_start_image = 10000 + start_img_param if start_img_param < 10000 else start_img_param
-                    
-                    # --- Process 目录 (写到 /tmp 以避开权限问题) ---
-                    import tempfile
-                    local_tmp = os.path.join(tempfile.gettempdir(), "dozor_process") # /tmp/dozor_process
-                    sub_folder = "%s_%d" % (prefix, run_number)
-                    proc_dir = os.path.join(local_tmp, sub_folder)
-
-                    # --- 图片数量 ---
-                    # 确保用的是总帧数 (Mesh Scan 需要 total frames)
-                    if self.current_dc_parameters.get("experiment_type") == "Mesh":
-                        # 尝试获取 mesh_total_nb_frames，如果没有则用 num_images
-                        num_images = int(self.get_mesh_total_nb_frames())
-                    else:
-                        num_images = int(osc_seq.get("number_of_images", 1))
-
-                    # --- 组装参数 ---
-                    dozor_params = {
-                        "process_directory": proc_dir,    # 写: /tmp/...
-                        "template": full_template_path,   # 读: /ramdisk/...
-                        "run_number": run_number,
-                        "first_image_num": real_start_image, 
-                        "images_num": num_images,
-                        "exp_time": float(osc_seq.get("exposure_time", 1.0)),
-                        "osc_range": 0, 
-                        "osc_start": 0
-                    }
-                    
-                    logging.getLogger("HWR").info("[BL19U1Collect] Dozor Params: %s", str(dozor_params))
-                    
-                    # 执行 Dozor
-                    dozor.run_processing(dozor_params)
-                
-                else:
-                    logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not defined.")
-
-            except Exception:
-                import traceback
-                logging.getLogger("HWR").error("[BL19U1Collect] Dozor Trigger Error: %s", traceback.format_exc())
-            # ===================================Dozor Trigger END========================================
-
         # if self.current_dc_parameters["experiment_type"] == "Mesh":
             # disable stream interface
             # stop spot finding
@@ -1187,141 +1027,77 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         HWR.beamline.diffractometer.wait_ready()
 
 
-        if self.current_dc_parameters.get("experiment_type") != "Mesh":
-            try:
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] Going to generate XDS input files"
-                )
-                # generate XDS.INP only in raw/process
-                data_path = self.current_dc_parameters["fileinfo"]["filename"]
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] DATA file: %s" % data_path
-                )
-                logging.getLogger("HWR").info(
-                    "[BL19U1MCOLLECT] XDS file: %s"
-                    % self.current_dc_parameters["xds_dir"]
-                )
-                # Wait for the master file
-                self.wait_for_file_copied(data_path)
-                os.system(
-                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp.sh %s &"
-                    % (self.current_dc_parameters["xds_dir"], data_path)
-                )
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] AUTO file: %s"
-                    % self.current_dc_parameters["auto_dir"]
-                )
-                os.system(
-                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp_auto.sh %s &"
-                    % (self.current_dc_parameters["auto_dir"], data_path)
-                )
-                if (
-                    self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
-                    and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
-                    == 0
-                    and self.current_dc_parameters["oscillation_sequence"][0][
-                        "number_of_images"
-                    ]
-                    >= self.NIMAGES_TRIGGER_AUTO_PROC
-                ):
-                    self.trigger_auto_processing("after", self.current_dc_parameters, 0)
-            except Exception as ex:
-                logging.getLogger("HWR").error(
-                    "[COLLECT] Error creating XDS files, %s" % ex
-                )
+        # if self.current_dc_parameters.get("experiment_type") != "Mesh":
+        #     try:
+        #         logging.getLogger("HWR").info(
+        #             "[BL19U1COLLECT] Going to generate XDS input files"
+        #         )
+        #         # generate XDS.INP only in raw/process
+        #         data_path = self.current_dc_parameters["fileinfo"]["filename"]
+        #         logging.getLogger("HWR").info(
+        #             "[BL19U1COLLECT] DATA file: %s" % data_path
+        #         )
+        #         logging.getLogger("HWR").info(
+        #             "[BL19U1MCOLLECT] XDS file: %s"
+        #             % self.current_dc_parameters["xds_dir"]
+        #         )
+        #         # Wait for the master file
+        #         self.wait_for_file_copied(data_path)
+        #         os.system(
+        #             "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp.sh %s &"
+        #             % (self.current_dc_parameters["xds_dir"], data_path)
+        #         )
+        #         logging.getLogger("HWR").info(
+        #             "[BL19U1COLLECT] AUTO file: %s"
+        #             % self.current_dc_parameters["auto_dir"]
+        #         )
+        #         os.system(
+        #             "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp_auto.sh %s &"
+        #             % (self.current_dc_parameters["auto_dir"], data_path)
+        #         )
+        #         if (
+        #             self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
+        #             and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
+        #             == 0
+        #             and self.current_dc_parameters["oscillation_sequence"][0][
+        #                 "number_of_images"
+        #             ]
+        #             >= self.NIMAGES_TRIGGER_AUTO_PROC
+        #         ):
+        #             self.trigger_auto_processing("after", self.current_dc_parameters, 0)
+        #     except Exception as ex:
+        #         logging.getLogger("HWR").error(
+        #             "[COLLECT] Error creating XDS files, %s" % ex
+        #         )
+        #
+        #     # we store the first and the last images, TODO: every 45 degree
+        #     logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
+        #     try:
+        #         self.store_image_in_lims(1)
+        #         # self.generate_and_copy_thumbnails(
+        #         #     self.current_dc_parameters["fileinfo"]["filename"], 1
+        #         # )
+        #     except Exception as ex:
+        #         print(ex)
+        #
+        #     last_frame = self.current_dc_parameters["oscillation_sequence"][0][
+        #         "number_of_images"
+        #     ]
+        #     if last_frame > 1:
+        #         logging.getLogger("HWR").info(
+        #             "Storing images in lims, frame number: %d" % last_frame
+        #         )
+        #         try:
+        #             self.store_image_in_lims(last_frame)
+        #             # self.generate_and_copy_thumbnails(
+        #             #     self.current_dc_parameters["fileinfo"]["filename"], last_frame
+        #             # )
+        #         except Exception as ex:
+        #             print(ex)
+        #
+        # if self.datacatalog_enabled:
+        #     self.store_datacollection_datacatalog()
 
-            # we store the first and the last images, TODO: every 45 degree
-            logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
-            try:
-                self.store_image_in_lims(1)
-                logging.getLogger("HWR").info("==== fileinfo - filename: %s" % self.current_dc_parameters["fileinfo"]["filename"])
-                self.generate_and_copy_thumbnails(
-                    self.current_dc_parameters["fileinfo"]["filename"], 1
-                )
-
-            except Exception as ex:
-                logging.getLogger("HWR").error("Storing first images in lims, error: %s" % ex)
-
-            last_frame = self.current_dc_parameters["oscillation_sequence"][0][
-                "number_of_images"
-            ]
-            if last_frame > 1:
-                logging.getLogger("HWR").info(
-                    "Storing images in lims, frame number: %d" % last_frame
-                )
-                try:
-                    self.store_image_in_lims(last_frame)
-                    self.generate_and_copy_thumbnails(
-                        self.current_dc_parameters["fileinfo"]["filename"], last_frame
-                    )
-                except Exception as ex:
-                    logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
-
-        if self.datacatalog_enabled:
-            self.store_datacollection_datacatalog()
-
-
-    def _store_image_in_lims(self, frame_number, motor_position_id=None):
-        """
-        Descript. :
-        """
-        if HWR.beamline.lims:
-            file_location = self.current_dc_parameters["fileinfo"]["directory"]
-            image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-            filename = image_file_template % frame_number
-            lims_image = {
-                "dataCollectionId": self.current_dc_parameters["collection_id"],
-                "fileName": filename,
-                "fileLocation": file_location,
-                "imageNumber": frame_number,
-                "measuredIntensity": HWR.beamline.flux.get_value(),
-                "synchrotronCurrent": self.get_machine_current(),
-                "machineMessage": self.get_machine_message(),
-                "temperature": self.get_cryo_temperature(),
-            }
-            archive_directory = self.current_dc_parameters["fileinfo"][
-                "archive_directory"
-            ]
-
-            if archive_directory:
-                jpeg_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                thumb_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
-                jpeg_thumbnail_file_template = os.path.join(
-                    archive_directory, thumb_filename
-                )
-                jpeg_full_path = jpeg_file_template % frame_number
-                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-                lims_image["jpegFileFullPath"] = jpeg_full_path
-                lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
-                lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
-            if motor_position_id:
-                lims_image["motorPositionId"] = motor_position_id
-            logging.getLogger("HWR").info(
-                "LIMS IMAGE: %s, %s, %s, %s"
-                % (
-                    jpeg_filename,
-                    thumb_filename,
-                    jpeg_full_path,
-                    jpeg_thumbnail_full_path,
-                )
-            )
-            try:
-                image_id = HWR.beamline.lims.store_image(lims_image)
-            except Exception as ex:
-                print(ex)
-            # temp fix for ispyb permission issues
-            try:
-                session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % (session_dir))
-            except Exception as ex:
-                print(ex)
-
-            return image_id
     def get_resolution_at_corner(self):
         print("Find good value for get_resolution_at_corner ")
         return HWR.beamline.resolution.get_value_at_corner()
@@ -1394,7 +1170,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
     def wait_for_file_copied(self, full_file_path):
         # first wait for the file being created
         with gevent.Timeout(
-            3, Exception("Timeout waiting for the data file available.")
+            1, Exception("Timeout waiting for the data file available.")
         ):
             while not os.path.exists(full_file_path):
                 gevent.sleep(0.1)
@@ -1459,15 +1235,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             )
             try:
                 image_id = HWR.beamline.lims.store_image(lims_image)
-                logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
             except Exception as ex:
-                logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
+                print(ex)
             # temp fix for ispyb permission issues
             try:
                 session_dir = os.path.join(archive_directory, "../../../")
                 os.system("chmod -R 777 %s" % (session_dir))
             except Exception as ex:
-                logging.getLogger("HWR").error("LIMS IMAGE session_dir, error: %s" % ex)
+                print(ex)
 
             return image_id
 
@@ -1587,7 +1362,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
  #       )
         #return(1983,2534)
         return(127,144)
-        # return(450,335)
 
     def get_beam_shape(self):
         """
