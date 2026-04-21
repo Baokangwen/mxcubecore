@@ -34,7 +34,8 @@ ssh "$REMOTE_HOST" << EOF >> /tmp/edna_offline.log 2>&1
     
     python /opt/edna2/bin/run_edna2.py --taskName "$PLUGIN_NAME" --inDataFile "$REMOTE_TMP"
 
-    python /opt/edna2/bin/run_edna2.py --taskName ISPyBTask --inDataFile $SAFE_OUT_DIR/Characterisation_output.json
+    # === 修改点在这里：加上了 \ 转义符 ===
+    python /opt/edna2/bin/run_edna2.py --taskName ISPyBTask --inDataFile \$SAFE_OUT_DIR/Characterisation_output.json
 EOF
 
 echo "--- Offline Processing Finished ---" >> /tmp/edna_offline.log
