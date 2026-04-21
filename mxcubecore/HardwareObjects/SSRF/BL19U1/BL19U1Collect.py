@@ -841,7 +841,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             "[COLLECT] Oscillation requested oscillation_parameters: %s"
             % oscillation_parameters
         )
-        # msg += " || dc parameters: %s" % self.current_dc_parameters
         logging.getLogger("HWR").info(msg)
 
         trigger_mode = HWR.beamline.detector.getProperty("trigger_mode")
@@ -850,14 +849,20 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             # In gate mode, the MD must have the number of triggers
             HWR.beamline.diffractometer.setNbImages(oscillation_parameters["number_of_images"])
 
+        # =======================================================
+        # 1. 螺旋扫描模式 (Helical)
+        # =======================================================
         if self.helical:
             print(" ^^^^^^^^^^ HELICAL SCAN ^^^^^^^^^^^^")
             HWR.beamline.diffractometer.oscilScan4d(
                 start, end, exptime, self.helical_pos, wait=True
             )
+            
+        # =======================================================
+        # 2. 网格扫描模式 (Mesh / Raster) - 所有的 Raster 代码放这里！
+        # =======================================================
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
             mesh_range = oscillation_parameters["mesh_range"]
-            # HWR.beamline.diffractometer.raster_scan(20, 22, 10, 0.2, 0.2, 10, 10)
             logging.getLogger("HWR").info(
                 "Mesh oscillation requested: number of lines %s"
                 % self.get_mesh_num_lines()
@@ -867,39 +872,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 % self.get_mesh_total_nb_frames()       # 此处的值是对的，为行*列
             )
             det = HWR.beamline.detector
-            # latency_time = det.get_latency_time()
             latency_time = det.get_deadtime()
-            # shape_id = self.get_current_shape_id()
             shape = HWR.beamline.sample_view.get_selected_shapes()[0].as_dict()
-            # shape["pixels_per_mm"][0] = shape["pixels_per_mm"][0]/2
-            # shape["pixels_per_mm"][1] = shape["pixels_per_mm"][1]/2
             self.width = "cell_width"
             range_x = shape.get("num_cols") * shape.get(self.width) / 1000.0
             range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
-        #     print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
-        #     while(HWR.beamline.diffractometer.get_state() != "Ready"):
-        #         time.sleep(0.1)
-        #     print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
-        #     print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
-        #     self.log.debug("self.mesh_range in oscil() of BL19U!Collect.py, horizontal_range: %s, vertical_range: %s" %(self.mesh_range['horizontal_range'],self.mesh_range['vertical_range']))
-        #     self.log.debug("HWR.beamline.sample_view.shapes[self.shape].cp_list[1].phiy: %f. " %(HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy))
-        #     mesh_center_topRightPoint_phiy = HWR.beamline.sample_view.shapes[self.shape['id']].cp_list[1].phiy
-        #     HWR.beamline.diffractometer.oscilScanMesh(
-        #         start,
-        #         end,
-        #         exptime,
-        #         latency_time,
-        #         self.mesh_num_lines,
-        #         self.mesh_total_nb_frames,
-        #         self.mesh_center,
-        #         self.mesh_range,
-        #         mesh_center_topRightPoint_phiy,
-        #         wait=True,
-        #     )
-        #     # 添加结束
-        # else:
-        #     print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
-        #     HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
+
             print(" ^^^^^^^^^^^^ RASTER SCAN ^^^^^^^^^^^^^^^^^^^")
             while(HWR.beamline.diffractometer.get_state() != "Ready"):
                 time.sleep(0.1)
@@ -941,6 +919,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
             except Exception as e:
                 logging.getLogger("HWR").error(f"[RasterFix] CRITICAL ERROR: {e}")
+            
             print("[RasterScanEX info] RAW parameter of RASTER SCAN, start: ",start," end: ",end," exptime: ",exptime," latency_time: ",latency_time)
             print(" self.mesh_num_lines: ",self.mesh_num_lines," self.mesh_total_nb_frames: ",self.mesh_total_nb_frames," self.mesh_center: ",self.mesh_center," self.mesh_range: ",self.mesh_range)
             
@@ -956,6 +935,13 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 self.mesh_range,
                 wait=True,
             )
+
+        # =======================================================
+        # 3. 常规单轴扫描模式 (OSC SCAN) - 里面只能有这一句话！
+        # =======================================================
+        else:
+            print(" ^^^^^^^^^^^^ OSC SCAN ^^^^^^^^^^^")
+            HWR.beamline.diffractometer.oscilScan(start, end, exptime, wait=True)
             
     def _update_task_progress(self):
         logging.getLogger("HWR").info("[COLLECT] update task progress launched")
@@ -1171,18 +1157,27 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
         HWR.beamline.diffractometer.set_phase("Centring", wait=False)
 
-        process = Popen(
-                    "~/scripts_mxcube/process_data.sh %s %s"
-                    % (raw_data_dir, xds_dir),
-                    stdout=PIPE, stderr=PIPE, shell=True, executable="/bin/bash"
-                 )
+        try:
+            if HWR.beamline.offline_processing is not None:
+                logging.getLogger("HWR").info("[BL19U1Collect] Triggering new EDNA2 Offline Processing...")
+                HWR.beamline.offline_processing.execute_autoprocessing("after", self.current_dc_parameters, 0)
+            else:
+                logging.getLogger("HWR").warning("[BL19U1Collect] offline_processing object is NONE! Check XML config.")
+        except Exception as e:
+            logging.getLogger("HWR").error(f"[BL19U1Collect] Failed to trigger offline processing: {e}")
 
-        stdout, stderr = process.communicate()
+        # process = Popen(
+        #             "~/scripts_mxcube/process_data.sh %s %s"
+        #             % (raw_data_dir, xds_dir),
+        #             stdout=PIPE, stderr=PIPE, shell=True, executable="/bin/bash"
+        #          )
 
-        if len(stderr)  > 0:
-            logging.getLogger("HWR").info('[PROCESS] errors : ' + stderr.decode('utf-8'))
+        # stdout, stderr = process.communicate()
 
-        logging.getLogger("HWR").info('[PROCESS] output : ' + stdout.decode('utf-8'))
+        # if len(stderr)  > 0:
+        #     logging.getLogger("HWR").info('[PROCESS] errors : ' + stderr.decode('utf-8'))
+
+        # logging.getLogger("HWR").info('[PROCESS] output : ' + stdout.decode('utf-8'))
 
         HWR.beamline.diffractometer.wait_ready()
 

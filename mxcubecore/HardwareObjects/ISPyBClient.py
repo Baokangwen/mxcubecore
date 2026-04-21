@@ -1654,7 +1654,7 @@ class ISPyBClient(HardwareObject):
             group = ISPyBValueFactory().dcg_from_dc_params(
                 self._collection, mx_collection
             )
-            print(">>> 准备发送的 group 数据: ", group)
+            # print(">>> 准备发送的 group 数据: ", group)
             group_id = self._collection.service.storeOrUpdateDataCollectionGroup(group)
 
             return group_id
