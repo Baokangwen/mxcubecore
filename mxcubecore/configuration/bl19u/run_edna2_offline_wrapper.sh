@@ -1,41 +1,30 @@
 #!/bin/bash
+# ==============================================================================
+# BL19U1 - 极简自动化流水线 Wrapper
+# ==============================================================================
+
 LOCAL_JSON="$1"
-PLUGIN_NAME="${2:-Characterisation}"
-OUT_DIR="$3"
-
 REMOTE_HOST="demo@10.30.61.207"
-# 给本地 JSON 取 basename，防止带有意外的路径字符
-REMOTE_TMP="/tmp/$(basename "$LOCAL_JSON")"
+REMOTE_JSON="/tmp/$(basename "$LOCAL_JSON")"
 
-echo "--- Offline Processing Started: $(date) ---" >> /tmp/edna_offline.log
-echo "Local JSON: $LOCAL_JSON" >> /tmp/edna_offline.log
+# 记录开始时间
+echo "--- Offline Processing Triggered: $(date) ---" >> /tmp/edna_offline.log
 
-# 1. 传输 JSON 文件
-scp -q "$LOCAL_JSON" "${REMOTE_HOST}:${REMOTE_TMP}"
+# 1. 传输 JSON 参数到远程
+scp -q "$LOCAL_JSON" "${REMOTE_HOST}:${REMOTE_JSON}"
 
-# 提取数据收集的名字
-COLLECTION_NAME=$(basename "$OUT_DIR")
-
-# 2. 远程执行
+# 2. 调用远程统一入口 (该脚本内嵌了 Characterisation + XDS + Upload 全流程)
 ssh "$REMOTE_HOST" << EOF >> /tmp/edna_offline.log 2>&1
     source /home/demo/anaconda3/etc/profile.d/conda.sh
     conda activate edna2
     export EDNA2_SITE=bl19u1lab
-    
-    # 强制注入 XDS 路径
     export PATH=/home/demo/XDS:\$PATH
-    
-    # 在 demo 账号有绝对权限的 /tmp 下建专属工作目录
-    SAFE_OUT_DIR="/tmp/edna_results_${COLLECTION_NAME}_$(date +%H%M%S)"
-    mkdir -p "\$SAFE_OUT_DIR"
-    cd "\$SAFE_OUT_DIR"
-    
-    echo "Executing EDNA2 Plugin: $PLUGIN_NAME in \$SAFE_OUT_DIR"
-    
-    python /opt/edna2/bin/run_edna2.py --taskName "$PLUGIN_NAME" --inDataFile "$REMOTE_TMP"
 
-    # === 修改点在这里：加上了 \ 转义符 ===
-    python /opt/edna2/bin/run_edna2.py --taskName ISPyBTask --inDataFile \$SAFE_OUT_DIR/Characterisation_output.json
+    echo "Running Unified Pipeline for: $REMOTE_JSON"
+    
+    # 直接运行你刚才测试通的 run_xds_pipeline.py 脚本
+    # 确保该脚本已经部署在远端的 /opt/edna2/ 目录下
+    python /opt/edna2/run_xds_pipeline.py "$REMOTE_JSON"
 EOF
 
 echo "--- Offline Processing Finished ---" >> /tmp/edna_offline.log
