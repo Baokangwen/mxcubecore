@@ -1495,7 +1495,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             ):
                 number_of_snapshots = 1
             else:
-                number_of_snapshots = 1  #  take only one image for the moment TODO use the GUI parameter
+                number_of_snapshots = 4  #  take only one image for the moment TODO use the GUI parameter
 
             logging.getLogger("user_level_log").info(
                 "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
