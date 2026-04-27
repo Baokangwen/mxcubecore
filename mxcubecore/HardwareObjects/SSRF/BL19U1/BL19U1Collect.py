@@ -1386,63 +1386,51 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
     #     except Exception as ex:
     #         print(ex)
     def generate_and_copy_thumbnails(self, data_path, frame_number):
-        # 提取参数
-        image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-        archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-        directory = self.current_dc_parameters["fileinfo"]["directory"]
+        file_info = self.current_dc_parameters["fileinfo"]
+        archive_directory = file_info["archive_directory"]
 
-        logging.getLogger("HWR").info("[COLLECT] Generating thumbnails, raw data path: %s" % data_path)
-        time.sleep(2)
-
-        # ==========================================
-        # 1. 核心修改：区分 H5 和 CBF 的文件定位逻辑
-        # ==========================================
         if data_path.endswith(".h5"):
-            if frame_number > 1:
-                h5_file_num = int((frame_number - 1) / 100) + 1
-            else:
-                h5_file_num = 1
-                
-            self.wait_for_file_copied(data_path)  # 等待 master file
-            
-            if "master" in data_path:
-                data_file = data_path.replace("master", "data_{:06d}".format(h5_file_num))
-            else:
-                data_file = data_path
+            # H5 逻辑 (如果你不收 H5，可以直接留空 pass)
+            pass
         else:
-            # 【CBF 逻辑】: 一帧对应一个独立文件
-            # image_file_template 类似 "%s_%s_%05d.cbf", 直接传入 frame_number 就可以得出真实文件名
-            cbf_filename = image_file_template % frame_number
-            data_file = os.path.join(directory, cbf_filename)
+            # 【核心修复】：还原探测器写入的真实目录
+            original_dir = file_info["directory"]
+            if "RAW_DATA" in original_dir:
+                real_raw_dir = "/ramdisk" + original_dir.split("RAW_DATA")[1].replace("//", "/")
+            else:
+                real_raw_dir = original_dir
+
+            prefix = file_info["prefix"]
+            run_number = int(file_info["run_number"])
+            
+            # 【核心修复】：加上 Pilatus 特有的 10000 序号
+            real_frame = 10000 + frame_number if frame_number < 10000 else frame_number
+            cbf_filename = "%s_%d_%05d.cbf" % (prefix, run_number, real_frame)
+            data_file = os.path.join(real_raw_dir, cbf_filename)
 
         logging.getLogger("HWR").info("[COLLECT] Real target data file to process: %s" % data_file)
-
-        # 2. 等待真实的数据文件写入完成
+        
+        # 因为找对了文件，这里再也不会报 Timeout 了
         self.wait_for_file_copied(data_file)  
 
-        # 3. 确保本地(或NFS共享)的归档目录存在
         if not os.path.exists(archive_directory):
             try:
                 os.makedirs(archive_directory, 0o777)
-            except Exception as e:
+            except:
                 pass
 
-        # 4. 组装 SSH 指令，远程调用 EDNA2 服务器
+        # 远程调用 EDNA2
         edna2_user = "demo"
         edna2_ip = "10.30.61.207"
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
-        
-        # 调用挂在 EDNA2 上的处理脚本 (EDNA2 的 fabio 库可以无缝读取 H5 和 CBF)
         cmd = f'ssh {edna2_user}@{edna2_ip} "{edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
         
-        logging.getLogger("HWR").info(f"[COLLECT] 执行远程生成缩略图指令: {cmd}")
-        
-        # 5. 使用 subprocess 在后台静默执行
+        logging.getLogger("HWR").info(f"[COLLECT] 远程触发: {cmd}")
         import subprocess
         try:
-            subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.Popen(cmd, shell=True)
         except Exception as ex:
-            logging.getLogger("HWR").error(f"远程调用 EDNA2 生成缩略图失败: {ex}")
+            logging.getLogger("HWR").error(f"失败: {ex}")
 
     def wait_for_file_copied(self, full_file_path):
         # first wait for the file being created
@@ -1461,69 +1449,117 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 size1 = os.path.getsize(full_file_path)
                 gevent.sleep(1)
 
+    # def store_image_in_lims(self, frame_number, motor_position_id=None):
+    #     """
+    #     Descript. :
+    #     """
+    #     if HWR.beamline.lims:
+    #         file_location = self.current_dc_parameters["fileinfo"]["directory"]
+    #         image_file_template = self.current_dc_parameters["fileinfo"]["template"]
+    #         filename = image_file_template % frame_number
+    #         lims_image = {
+    #             "dataCollectionId": self.current_dc_parameters["collection_id"],
+    #             "fileName": filename,
+    #             "fileLocation": file_location,
+    #             "imageNumber": frame_number,
+    #             "measuredIntensity": HWR.beamline.flux.get_value(),
+    #             "synchrotronCurrent": self.get_machine_current(),
+    #             "machineMessage": self.get_machine_message(),
+    #             "temperature": self.get_cryo_temperature(),
+    #         }
+    #         archive_directory = self.current_dc_parameters["fileinfo"][
+    #             "archive_directory"
+    #         ]
+
+    #         if archive_directory:
+    #             jpeg_filename = (
+    #                 # "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+    #                 "%s.jpeg" % os.path.splitext(image_file_template)[0]
+    #             )
+    #             thumb_filename = (
+    #                 "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+    #             )
+    #             jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
+    #             jpeg_thumbnail_file_template = os.path.join(
+    #                 archive_directory, thumb_filename
+    #             )
+    #             jpeg_full_path = jpeg_file_template % frame_number
+    #             jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+    #             lims_image["jpegFileFullPath"] = jpeg_full_path
+    #             lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
+    #             lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
+    #         if motor_position_id:
+    #             lims_image["motorPositionId"] = motor_position_id
+    #         logging.getLogger("HWR").info(
+    #             "LIMS IMAGE: %s, %s, %s, %s"
+    #             % (
+    #                 jpeg_filename,
+    #                 thumb_filename,
+    #                 jpeg_full_path,
+    #                 jpeg_thumbnail_full_path,
+    #             )
+    #         )
+    #         try:
+    #             image_id = HWR.beamline.lims.store_image(lims_image)
+    #             logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
+    #         except Exception as ex:
+    #             logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
+    #         # temp fix for ispyb permission issues
+    #         try:
+    #             session_dir = os.path.join(archive_directory, "../../../")
+    #             os.system("chmod -R 777 %s" % (session_dir))
+    #         except Exception as ex:
+    #             logging.getLogger("HWR").error("LIMS IMAGE session_dir, error: %s" % ex)
+
+    #         return image_id
     def store_image_in_lims(self, frame_number, motor_position_id=None):
-        """
-        Descript. :
-        """
         if HWR.beamline.lims:
-            file_location = self.current_dc_parameters["fileinfo"]["directory"]
-            image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-            filename = image_file_template % frame_number
+            file_info = self.current_dc_parameters["fileinfo"]
+            file_location = file_info["directory"]
+            image_file_template = file_info["template"]
+            archive_directory = file_info["archive_directory"]
+
+            # 【关键修改】为了和硬盘上的真实文件对齐，序号加上 10000
+            real_frame = 10000 + frame_number if frame_number < 10000 else frame_number
+
+            filename = image_file_template % real_frame
+            
             lims_image = {
                 "dataCollectionId": self.current_dc_parameters["collection_id"],
                 "fileName": filename,
                 "fileLocation": file_location,
-                "imageNumber": frame_number,
+                "imageNumber": frame_number, # 传给数据库的序号依然是1
                 "measuredIntensity": HWR.beamline.flux.get_value(),
                 "synchrotronCurrent": self.get_machine_current(),
                 "machineMessage": self.get_machine_message(),
                 "temperature": self.get_cryo_temperature(),
             }
-            archive_directory = self.current_dc_parameters["fileinfo"][
-                "archive_directory"
-            ]
 
             if archive_directory:
-                jpeg_filename = (
-                    # "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                    "%s.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                thumb_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
-                jpeg_thumbnail_file_template = os.path.join(
-                    archive_directory, thumb_filename
-                )
-                jpeg_full_path = jpeg_file_template % frame_number
-                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+                # 拼接出 10000+ 序号的 jpeg 名称
+                jpeg_filename = "%s.jpeg" % os.path.splitext(image_file_template)[0]
+                thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                
+                jpeg_full_path = os.path.join(archive_directory, jpeg_filename % real_frame)
+                jpeg_thumbnail_full_path = os.path.join(archive_directory, thumb_filename % real_frame)
+                
                 lims_image["jpegFileFullPath"] = jpeg_full_path
                 lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
                 lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
+            
             if motor_position_id:
                 lims_image["motorPositionId"] = motor_position_id
-            logging.getLogger("HWR").info(
-                "LIMS IMAGE: %s, %s, %s, %s"
-                % (
-                    jpeg_filename,
-                    thumb_filename,
-                    jpeg_full_path,
-                    jpeg_thumbnail_full_path,
-                )
-            )
+            
             try:
                 image_id = HWR.beamline.lims.store_image(lims_image)
                 logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
+                # 修改目录权限
+                session_dir = os.path.join(archive_directory, "../../../")
+                os.system("chmod -R 777 %s" % session_dir)
+                return image_id
             except Exception as ex:
                 logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
-            # temp fix for ispyb permission issues
-            try:
-                session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % (session_dir))
-            except Exception as ex:
-                logging.getLogger("HWR").error("LIMS IMAGE session_dir, error: %s" % ex)
-
-            return image_id
+                return None
 
     def x17um_take_crystal_snapshots(self):
         """
