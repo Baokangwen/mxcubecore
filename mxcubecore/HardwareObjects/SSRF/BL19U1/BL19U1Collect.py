@@ -1332,59 +1332,111 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         )
         return
 
+    # def generate_and_copy_thumbnails(self, data_path, frame_number):
+    #     #  generare diffraction thumbnails
+    #     image_file_template = self.current_dc_parameters["fileinfo"]["template"]
+    #     archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
+    #     thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+    #     jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
+    #     jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+
+    #     logging.getLogger("HWR").info(
+    #         "[COLLECT] Generating thumbnails, output filename: %s"
+    #         % jpeg_thumbnail_full_path
+    #     )
+    #     logging.getLogger("HWR").info(
+    #         "[COLLECT] Generating thumbnails, data path: %s" % data_path
+    #     )
+    #     input_file = data_path
+    #     binfactor = 1
+    #     nimages = 1
+    #     first_image = 0
+    #     rootname, ext = os.path.splitext(input_file)
+    #     rings = [0.25, 0.50, 0.75, 1.00, 1.25]
+    #     # master file is need but also data files
+    #     # 100 frames per data file, so adapt accordingly for the file name in case not the first frame
+    #     # TODO: get num_images_per_file as variable
+    #     time.sleep(2)
+    #     if frame_number > 1:
+    #         frame_number = frame_number / 100
+
+    #     self.wait_for_file_copied(data_path)  # master file
+
+    #     data_file = data_path.replace("master", "data_{:06d}".format(frame_number))
+
+    #     self.wait_for_file_copied(data_path)  # data file
+
+    #     if not os.path.exists(os.path.dirname(jpeg_thumbnail_full_path)):
+    #         os.makedirs(os.path.dirname(jpeg_thumbnail_full_path))
+    #     try:
+    #         # dataset = EigerDataSet(data_path)
+    #         dataset.save_thumbnail(
+    #             binfactor,
+    #             output_file=jpeg_thumbnail_full_path,
+    #             start_image=first_image,
+    #             nb_images=nimages,
+    #             rings=rings,
+    #         )
+    #     except Exception as ex:
+    #         print(ex)
+
+    #     try:
+    #         os.chmod(os.path.dirname(jpeg_thumbnail_full_path), 0o777)
+    #         os.chmod(jpeg_thumbnail_full_path, 0o777)
+    #     except Exception as ex:
+    #         print(ex)
     def generate_and_copy_thumbnails(self, data_path, frame_number):
         #  generare diffraction thumbnails
         image_file_template = self.current_dc_parameters["fileinfo"]["template"]
         archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-        thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-        jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
-        jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
 
-        logging.getLogger("HWR").info(
-            "[COLLECT] Generating thumbnails, output filename: %s"
-            % jpeg_thumbnail_full_path
-        )
-        logging.getLogger("HWR").info(
-            "[COLLECT] Generating thumbnails, data path: %s" % data_path
-        )
-        input_file = data_path
-        binfactor = 1
-        nimages = 1
-        first_image = 0
-        rootname, ext = os.path.splitext(input_file)
-        rings = [0.25, 0.50, 0.75, 1.00, 1.25]
-        # master file is need but also data files
-        # 100 frames per data file, so adapt accordingly for the file name in case not the first frame
-        # TODO: get num_images_per_file as variable
+        logging.getLogger("HWR").info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
+        logging.getLogger("HWR").info("[COLLECT] Output archive dir: %s" % archive_directory)
+
+        # 1. 计算 H5 文件的正确序号 (例如每 100 帧存一个文件)
         time.sleep(2)
         if frame_number > 1:
-            frame_number = frame_number / 100
+            # 修复逻辑：第 101 帧应该去读 data_000002.h5
+            h5_file_num = int((frame_number - 1) / 100) + 1
+        else:
+            h5_file_num = 1
 
-        self.wait_for_file_copied(data_path)  # master file
+        # 2. 等待文件写入完成
+        self.wait_for_file_copied(data_path)  # 等待 master file
 
-        data_file = data_path.replace("master", "data_{:06d}".format(frame_number))
+        if "master" in data_path:
+            data_file = data_path.replace("master", "data_{:06d}".format(h5_file_num))
+        else:
+            data_file = data_path
 
-        self.wait_for_file_copied(data_path)  # data file
+        # ⚠️ 修复 Bug：这里应该等待 data_file，而不是 data_path
+        self.wait_for_file_copied(data_file)  
 
-        if not os.path.exists(os.path.dirname(jpeg_thumbnail_full_path)):
-            os.makedirs(os.path.dirname(jpeg_thumbnail_full_path))
+        # 3. 确保本地(或NFS共享)的归档目录存在
+        if not os.path.exists(archive_directory):
+            try:
+                os.makedirs(archive_directory, 0o777)
+            except Exception as e:
+                pass
+
+        # 4. 组装 SSH 指令，远程调用 EDNA2 服务器生成带有分辨率环的缩略图
+        # 【注意：请把下面这三个变量换成你 EDNA2 服务器真实的 IP、用户名和 Python 路径】
+        edna2_user = "demo"
+        edna2_ip = "10.30.61.207"
+        edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
+        
+        # 调用挂在 EDNA2 上的处理脚本
+        cmd = f'ssh {edna2_user}@{edna2_ip} "{edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
+        
+        logging.getLogger("HWR").info(f"[COLLECT] 执行远程生成缩略图指令: {cmd}")
+        
+        # 5. 使用 subprocess 在后台静默执行，不卡住 MXCuBE 的主流程
+        import subprocess
         try:
-            # dataset = EigerDataSet(data_path)
-            dataset.save_thumbnail(
-                binfactor,
-                output_file=jpeg_thumbnail_full_path,
-                start_image=first_image,
-                nb_images=nimages,
-                rings=rings,
-            )
+            subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # 因为文件 777 权限已经在 make_thumbnail.py 里赋好了，这里不用再重复 chmod
         except Exception as ex:
-            print(ex)
-
-        try:
-            os.chmod(os.path.dirname(jpeg_thumbnail_full_path), 0o777)
-            os.chmod(jpeg_thumbnail_full_path, 0o777)
-        except Exception as ex:
-            print(ex)
+            logging.getLogger("HWR").error(f"远程调用 EDNA2 生成缩略图失败: {ex}")
 
     def wait_for_file_copied(self, full_file_path):
         # first wait for the file being created
@@ -1427,7 +1479,8 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
             if archive_directory:
                 jpeg_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                    # "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                    "%s.jpeg" % os.path.splitext(image_file_template)[0]
                 )
                 thumb_filename = (
                     "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
