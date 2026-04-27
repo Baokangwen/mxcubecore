@@ -1386,30 +1386,38 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
     #     except Exception as ex:
     #         print(ex)
     def generate_and_copy_thumbnails(self, data_path, frame_number):
-        #  generare diffraction thumbnails
+        # 提取参数
         image_file_template = self.current_dc_parameters["fileinfo"]["template"]
         archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
+        directory = self.current_dc_parameters["fileinfo"]["directory"]
 
-        logging.getLogger("HWR").info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
-        logging.getLogger("HWR").info("[COLLECT] Output archive dir: %s" % archive_directory)
-
-        # 1. 计算 H5 文件的正确序号 (例如每 100 帧存一个文件)
+        logging.getLogger("HWR").info("[COLLECT] Generating thumbnails, raw data path: %s" % data_path)
         time.sleep(2)
-        if frame_number > 1:
-            # 修复逻辑：第 101 帧应该去读 data_000002.h5
-            h5_file_num = int((frame_number - 1) / 100) + 1
+
+        # ==========================================
+        # 1. 核心修改：区分 H5 和 CBF 的文件定位逻辑
+        # ==========================================
+        if data_path.endswith(".h5"):
+            if frame_number > 1:
+                h5_file_num = int((frame_number - 1) / 100) + 1
+            else:
+                h5_file_num = 1
+                
+            self.wait_for_file_copied(data_path)  # 等待 master file
+            
+            if "master" in data_path:
+                data_file = data_path.replace("master", "data_{:06d}".format(h5_file_num))
+            else:
+                data_file = data_path
         else:
-            h5_file_num = 1
+            # 【CBF 逻辑】: 一帧对应一个独立文件
+            # image_file_template 类似 "%s_%s_%05d.cbf", 直接传入 frame_number 就可以得出真实文件名
+            cbf_filename = image_file_template % frame_number
+            data_file = os.path.join(directory, cbf_filename)
 
-        # 2. 等待文件写入完成
-        self.wait_for_file_copied(data_path)  # 等待 master file
+        logging.getLogger("HWR").info("[COLLECT] Real target data file to process: %s" % data_file)
 
-        if "master" in data_path:
-            data_file = data_path.replace("master", "data_{:06d}".format(h5_file_num))
-        else:
-            data_file = data_path
-
-        # ⚠️ 修复 Bug：这里应该等待 data_file，而不是 data_path
+        # 2. 等待真实的数据文件写入完成
         self.wait_for_file_copied(data_file)  
 
         # 3. 确保本地(或NFS共享)的归档目录存在
@@ -1419,22 +1427,20 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             except Exception as e:
                 pass
 
-        # 4. 组装 SSH 指令，远程调用 EDNA2 服务器生成带有分辨率环的缩略图
-        # 【注意：请把下面这三个变量换成你 EDNA2 服务器真实的 IP、用户名和 Python 路径】
+        # 4. 组装 SSH 指令，远程调用 EDNA2 服务器
         edna2_user = "demo"
         edna2_ip = "10.30.61.207"
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
         
-        # 调用挂在 EDNA2 上的处理脚本
+        # 调用挂在 EDNA2 上的处理脚本 (EDNA2 的 fabio 库可以无缝读取 H5 和 CBF)
         cmd = f'ssh {edna2_user}@{edna2_ip} "{edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
         
         logging.getLogger("HWR").info(f"[COLLECT] 执行远程生成缩略图指令: {cmd}")
         
-        # 5. 使用 subprocess 在后台静默执行，不卡住 MXCuBE 的主流程
+        # 5. 使用 subprocess 在后台静默执行
         import subprocess
         try:
             subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # 因为文件 777 权限已经在 make_thumbnail.py 里赋好了，这里不用再重复 chmod
         except Exception as ex:
             logging.getLogger("HWR").error(f"远程调用 EDNA2 生成缩略图失败: {ex}")
 
