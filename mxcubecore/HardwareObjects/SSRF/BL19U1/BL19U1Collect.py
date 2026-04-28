@@ -612,15 +612,6 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             remote_host_ip = self.getProperty("ppu2_ip")
             transfer_snapshot_args = [user_name,remote_host_ip,snapshot_path_in_ppu2,snapshot_path,snapshot_path_in_ppu2_withname,job_id]
 
-            # 触发转移snapshot 移除此函数，放在创建完各个数据库记录之后
-            # logging.getLogger("HWR").info('=============Start transfer_snapshot subprocess')
-            # transfer_snapshot_thread = threading.Thread(target = self.transfer_snapshot,args=(user_name, remote_host_ip, snapshot_path_in_ppu2, snapshot_path, snapshot_path_in_ppu2_withname,job_id))
-            # transfer_snapshot_thread.start()
-
-
-
-
-
         # logging.getLogger("HWR").info("set detector filenames: %S" % "".join(_filename))
         # move MD2 to DataCollection phase if it's not
         if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
@@ -1561,16 +1552,78 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
                 return None
 
+    # def x17um_take_crystal_snapshots(self):
+    #     """
+    #     Descript. :
+    #     """
+
+    #     HWR.beamline.diffractometer.wait_ready(1000)  # TODO check why sometimes the MD3 is in running state while we call movePhase
+
+    #     if self.current_dc_parameters["take_snapshots"]:
+    #         logging.getLogger("HWR").debug("perpare ot take snapshots")
+    #         # save the image to the data collection directory for the moment
+    #         snapshot_directory = os.path.join(
+    #             self.current_dc_parameters["fileinfo"]["archive_directory"], "snapshot"
+    #         )
+    #         logging.getLogger("HWR").debug(f"snapshot going to put in {snapshot_directory}")
+
+    #         if not os.path.exists(snapshot_directory):
+    #             try:
+    #                 self.create_directories(snapshot_directory)
+    #                 logging.getLogger("HWR").debug("snapshot directory created")
+    #             except Exception:
+    #                 logging.getLogger("HWR").exception("Collection: Error creating snapshot directory")
+
+    #         # for plate head, takes only one image
+    #         if (self.current_dc_parameters["experiment_type"] == "Mesh" or
+    #             # HWR.beamline.diffractometer.head_type.value == HWR.beamline.diffractometer.HEAD_TYPE_SMARTMAGNET
+    #             HWR.beamline.diffractometer.head_type.value == "SmartMagnet"
+    #         ):
+    #             number_of_snapshots = 1
+    #         else:
+    #             number_of_snapshots = 4  #  take only one image for the moment TODO use the GUI parameter
+
+    #         logging.getLogger("user_level_log").info(
+    #             "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
+    #         )
+    #         if HWR.beamline.diffractometer.get_current_phase() != "Centring":
+    #             logging.getLogger("user_level_log").info(
+    #                 "Moving Diffractometer to CentringPhase"
+    #             )
+    #             HWR.beamline.diffractometer.set_phase(
+    #                 "Centring", wait=True, timeout=200
+    #             )
+    #         # TODO check if is useful in case of mesh scan to move to center
+    #         #  with self.move_to_center_position()
+
+    #         for snapshot_index in range(number_of_snapshots):
+    #             snapshot_filename = os.path.join(
+    #                 snapshot_directory,
+    #                 "%s_%s_%s.snapshot.jpeg"
+    #                 % (
+    #                     self.current_dc_parameters["fileinfo"]["prefix"],
+    #                     self.current_dc_parameters["fileinfo"]["run_number"],
+    #                     (snapshot_index + 1),
+    #                 ),
+    #             )
+    #             self.current_dc_parameters[
+    #                 "xtalSnapshotFullPath%i" % (snapshot_index + 1)
+    #             ] = snapshot_filename
+    #             # self._do_take_snapshot(snapshot_filename)
+    #             self._take_crystal_snapshot(snapshot_filename)
+    #             time.sleep(1)  # needed, otherwise will get the same images
+    #             if number_of_snapshots > 1:
+    #                 HWR.beamline.diffractometer.phiMotor.set_value_relative(90)
+    #                 time.sleep(1)  # needed, otherwise will get the same images
+
     def x17um_take_crystal_snapshots(self):
         """
-        Descript. :
+        Descript. : 强制四连拍，并确保电机安全归位
         """
-
-        HWR.beamline.diffractometer.wait_ready(1000)  # TODO check why sometimes the MD3 is in running state while we call movePhase
+        HWR.beamline.diffractometer.wait_ready(1000)
 
         if self.current_dc_parameters["take_snapshots"]:
-            logging.getLogger("HWR").debug("perpare ot take snapshots")
-            # save the image to the data collection directory for the moment
+            logging.getLogger("HWR").debug("prepare to take snapshots")
             snapshot_directory = os.path.join(
                 self.current_dc_parameters["fileinfo"]["archive_directory"], "snapshot"
             )
@@ -1583,47 +1636,80 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 except Exception:
                     logging.getLogger("HWR").exception("Collection: Error creating snapshot directory")
 
-            # for plate head, takes only one image
-            if (self.current_dc_parameters["experiment_type"] == "Mesh" or
-                # HWR.beamline.diffractometer.head_type.value == HWR.beamline.diffractometer.HEAD_TYPE_SMARTMAGNET
-                HWR.beamline.diffractometer.head_type.value == "SmartMagnet"
-            ):
+            # ==========================================
+            # 🌟 强制四连拍，注释掉会干扰的 SmartMagnet 判断
+            # ==========================================
+            if self.current_dc_parameters["experiment_type"] == "Mesh":
                 number_of_snapshots = 1
             else:
-                number_of_snapshots = 4  #  take only one image for the moment TODO use the GUI parameter
+                number_of_snapshots = 4  
 
             logging.getLogger("user_level_log").info(
                 "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
             )
+            
             if HWR.beamline.diffractometer.get_current_phase() != "Centring":
-                logging.getLogger("user_level_log").info(
-                    "Moving Diffractometer to CentringPhase"
-                )
-                HWR.beamline.diffractometer.set_phase(
-                    "Centring", wait=True, timeout=200
-                )
-            # TODO check if is useful in case of mesh scan to move to center
-            #  with self.move_to_center_position()
+                logging.getLogger("user_level_log").info("Moving Diffractometer to CentringPhase")
+                HWR.beamline.diffractometer.set_phase("Centring", wait=True, timeout=200)
+
+            # ==========================================
+            # 🌟 核心控制逻辑：抓取电机、记录原点、循环拍照
+            # ==========================================
+            try:
+                # 【关键修复】使用底层实际绑定的变量名 phiMotor
+                phi_motor = HWR.beamline.diffractometer.phiMotor
+                start_angle = phi_motor.get_value()
+                logging.getLogger("HWR").info(f"[SNAPSHOT] 记录电机起始角度: {start_angle} 度")
+            except Exception as e:
+                logging.getLogger("HWR").error(f"[SNAPSHOT] 获取电机失败: {e}")
+                phi_motor = None
 
             for snapshot_index in range(number_of_snapshots):
+                index = snapshot_index + 1
                 snapshot_filename = os.path.join(
                     snapshot_directory,
                     "%s_%s_%s.snapshot.jpeg"
                     % (
                         self.current_dc_parameters["fileinfo"]["prefix"],
                         self.current_dc_parameters["fileinfo"]["run_number"],
-                        (snapshot_index + 1),
+                        index,
                     ),
                 )
-                self.current_dc_parameters[
-                    "xtalSnapshotFullPath%i" % (snapshot_index + 1)
-                ] = snapshot_filename
-                # self._do_take_snapshot(snapshot_filename)
+                
+                # 登记路径给 ISPyB (保证 4 个坑位都能拿到名字)
+                self.current_dc_parameters["xtalSnapshotFullPath%i" % index] = snapshot_filename
+                
+                # 执行截图
+                if phi_motor:
+                    logging.getLogger("HWR").info(f"[SNAPSHOT] 拍摄第 {index} 张，当前角度: {phi_motor.get_value():.2f}")
                 self._take_crystal_snapshot(snapshot_filename)
-                time.sleep(1)  # needed, otherwise will get the same images
-                if number_of_snapshots > 1:
-                    HWR.beamline.diffractometer.phiMotor.set_value_relative(90)
-                    time.sleep(1)  # needed, otherwise will get the same images
+                time.sleep(1.5)  # 留出保存图片的缓冲时间
+                
+                # 旋转 90 度 (如果是最后一张就不转了)
+                if number_of_snapshots > 1 and snapshot_index < number_of_snapshots - 1 and phi_motor:
+                    logging.getLogger("HWR").info("[SNAPSHOT] 旋转电机 +90 度...")
+                    target_angle = phi_motor.get_value() + 90
+                    phi_motor.set_value(target_angle)
+                    
+                    # 稳妥等待电机转动到位
+                    wait_count = 0
+                    while abs(phi_motor.get_value() - target_angle) > 0.5 and wait_count < 10:
+                        time.sleep(0.5)
+                        wait_count += 1
+
+            # ==========================================
+            # 🌟 安全归位：数据收集前的绝对保障
+            # ==========================================
+            if number_of_snapshots > 1 and phi_motor:
+                logging.getLogger("HWR").info(f"[SNAPSHOT] 四连拍结束，电机复位至原点: {start_angle} 度")
+                phi_motor.set_value(start_angle)
+                
+                # 等待复位完成
+                wait_count = 0
+                while abs(phi_motor.get_value() - start_angle) > 0.5 and wait_count < 10:
+                    time.sleep(0.5)
+                    wait_count += 1
+
 
     def trigger_auto_processing(self, process_event, params_dict, frame_number):
         """
