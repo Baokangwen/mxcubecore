@@ -1743,11 +1743,11 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         #    % (autoPROC_dir, params_dict['fileinfo']['filename']))
         # return
 
-        logging.getLogger("HWR").info("[COLLECT] Launching MAXIV Autoprocessing")
-        if HWR.beamline.offline_processing is not None:
-            HWR.beamline.offline_processing.execute_autoprocessing(
-                process_event, self.current_dc_parameters, frame_number
-            )
+        # logging.getLogger("HWR").info("[COLLECT] Launching MAXIV Autoprocessing")
+        # if HWR.beamline.offline_processing is not None:
+        #     HWR.beamline.offline_processing.execute_autoprocessing(
+        #         process_event, self.current_dc_parameters, frame_number
+        #     )
 
     def get_beam_centre(self):
         """
