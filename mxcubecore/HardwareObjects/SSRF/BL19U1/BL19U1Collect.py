@@ -1032,82 +1032,82 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         Descript. :
         """
         # ================================Dorzor Trigger start===================================
-        if self.current_dc_parameters.get("experiment_type") == "Mesh":
-            try:
-                # 1. 安全获取 Dozor 对象
-                if hasattr(HWR.beamline, "online_processing"):
-                    dozor = HWR.beamline.online_processing
-                else:
-                    dozor = self.getObjectByRole("online_processing")
+        # if self.current_dc_parameters.get("experiment_type") == "Mesh":
+        #     try:
+        #         # 1. 安全获取 Dozor 对象
+        #         if hasattr(HWR.beamline, "online_processing"):
+        #             dozor = HWR.beamline.online_processing
+        #         else:
+        #             dozor = self.getObjectByRole("online_processing")
 
-                if dozor:
-                    logging.getLogger("HWR").info("[BL19U1Collect] Collection Finished -> Triggering SimpleDozor...")
+        #         if dozor:
+        #             logging.getLogger("HWR").info("[BL19U1Collect] Collection Finished -> Triggering SimpleDozor...")
                     
-                    # 获取基础参数
-                    file_info = self.current_dc_parameters["fileinfo"]
-                    osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
+        #             # 获取基础参数
+        #             file_info = self.current_dc_parameters["fileinfo"]
+        #             osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
                     
-                    # --- 路径修正 (读取数据的路径: /ramdisk) ---
-                    original_dir = file_info["directory"]
-                    if "RAW_DATA" in original_dir:
-                        relative_path = original_dir.split("RAW_DATA")[1]
-                        raw_dir = "/ramdisk" + relative_path
-                        raw_dir = raw_dir.replace("//", "/")
-                    else:
-                        if "/home/bl19u1/inhouse/idtest0" in original_dir:
-                            raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
-                        else:
-                            raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
-                    logging.getLogger("HWR").info(f"[Path Fix] Real Ramdisk Path: {raw_dir}")
+        #             # --- 路径修正 (读取数据的路径: /ramdisk) ---
+        #             original_dir = file_info["directory"]
+        #             if "RAW_DATA" in original_dir:
+        #                 relative_path = original_dir.split("RAW_DATA")[1]
+        #                 raw_dir = "/ramdisk" + relative_path
+        #                 raw_dir = raw_dir.replace("//", "/")
+        #             else:
+        #                 if "/home/bl19u1/inhouse/idtest0" in original_dir:
+        #                     raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
+        #                 else:
+        #                     raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
+        #             logging.getLogger("HWR").info(f"[Path Fix] Real Ramdisk Path: {raw_dir}")
                     
-                    # --- 模板修正 ---
-                    prefix = file_info["prefix"]
-                    run_number = int(file_info["run_number"])
-                    # 构造模板: bao-bao_1_%05d.cbf (兼容你之前的双前缀逻辑)
-                    template_name = "%s_%d_?????.cbf" % (prefix, run_number)
-                    full_template_path = os.path.join(raw_dir, template_name)
+        #             # --- 模板修正 ---
+        #             prefix = file_info["prefix"]
+        #             run_number = int(file_info["run_number"])
+        #             # 构造模板: bao-bao_1_%05d.cbf (兼容你之前的双前缀逻辑)
+        #             template_name = "%s_%d_?????.cbf" % (prefix, run_number)
+        #             full_template_path = os.path.join(raw_dir, template_name)
                     
-                    # --- 起始号修正 ---
-                    start_img_param = int(osc_seq.get("start_image_number", 1))
-                    real_start_image = 10000 + start_img_param if start_img_param < 10000 else start_img_param
+        #             # --- 起始号修正 ---
+        #             start_img_param = int(osc_seq.get("start_image_number", 1))
+        #             real_start_image = 10000 + start_img_param if start_img_param < 10000 else start_img_param
                     
-                    # --- Process 目录 (写到 /tmp 以避开权限问题) ---
-                    import tempfile
-                    local_tmp = os.path.join(tempfile.gettempdir(), "dozor_process") # /tmp/dozor_process
-                    sub_folder = "%s_%d" % (prefix, run_number)
-                    proc_dir = os.path.join(local_tmp, sub_folder)
+        #             # --- Process 目录 (写到 /tmp 以避开权限问题) ---
+        #             import tempfile
+        #             local_tmp = os.path.join(tempfile.gettempdir(), "dozor_process") # /tmp/dozor_process
+        #             sub_folder = "%s_%d" % (prefix, run_number)
+        #             proc_dir = os.path.join(local_tmp, sub_folder)
 
-                    # --- 图片数量 ---
-                    # 确保用的是总帧数 (Mesh Scan 需要 total frames)
-                    if self.current_dc_parameters.get("experiment_type") == "Mesh":
-                        # 尝试获取 mesh_total_nb_frames，如果没有则用 num_images
-                        num_images = int(self.get_mesh_total_nb_frames())
-                    else:
-                        num_images = int(osc_seq.get("number_of_images", 1))
+        #             # --- 图片数量 ---
+        #             # 确保用的是总帧数 (Mesh Scan 需要 total frames)
+        #             if self.current_dc_parameters.get("experiment_type") == "Mesh":
+        #                 # 尝试获取 mesh_total_nb_frames，如果没有则用 num_images
+        #                 num_images = int(self.get_mesh_total_nb_frames())
+        #             else:
+        #                 num_images = int(osc_seq.get("number_of_images", 1))
 
-                    # --- 组装参数 ---
-                    dozor_params = {
-                        "process_directory": proc_dir,    # 写: /tmp/...
-                        "template": full_template_path,   # 读: /ramdisk/...
-                        "run_number": run_number,
-                        "first_image_num": real_start_image, 
-                        "images_num": num_images,
-                        "exp_time": float(osc_seq.get("exposure_time", 1.0)),
-                        "osc_range": 0, 
-                        "osc_start": 0
-                    }
+        #             # --- 组装参数 ---
+        #             dozor_params = {
+        #                 "process_directory": proc_dir,    # 写: /tmp/...
+        #                 "template": full_template_path,   # 读: /ramdisk/...
+        #                 "run_number": run_number,
+        #                 "first_image_num": real_start_image, 
+        #                 "images_num": num_images,
+        #                 "exp_time": float(osc_seq.get("exposure_time", 1.0)),
+        #                 "osc_range": 0, 
+        #                 "osc_start": 0
+        #             }
                     
-                    logging.getLogger("HWR").info("[BL19U1Collect] Dozor Params: %s", str(dozor_params))
+        #             logging.getLogger("HWR").info("[BL19U1Collect] Dozor Params: %s", str(dozor_params))
                     
-                    # 执行 Dozor
-                    dozor.run_processing(dozor_params)
+        #             # 执行 Dozor
+        #             dozor.run_processing(dozor_params)
                 
-                else:
-                    logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not defined.")
+        #         else:
+        #             logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not defined.")
 
-            except Exception:
-                import traceback
-                logging.getLogger("HWR").error("[BL19U1Collect] Dozor Trigger Error: %s", traceback.format_exc())
+        #     except Exception:
+        #         import traceback
+        #         logging.getLogger("HWR").error("[BL19U1Collect] Dozor Trigger Error: %s", traceback.format_exc())
             # ===================================Dozor Trigger END========================================
 
         # if self.current_dc_parameters["experiment_type"] == "Mesh":
