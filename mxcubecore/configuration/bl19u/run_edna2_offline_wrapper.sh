@@ -21,7 +21,7 @@ ssh "$REMOTE_HOST" << EOF >> /tmp/edna_offline.log 2>&1
     export PATH=/home/demo/XDS:\$PATH
 
     echo "Running Unified Pipeline for: $REMOTE_JSON"
-    
+
     # 确保该脚本已经部署在远端的 /opt/edna2/ 目录下
     python /opt/edna2/run_xds_pipeline.py "$REMOTE_JSON"
 EOF
