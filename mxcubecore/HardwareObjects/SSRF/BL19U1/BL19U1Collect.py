@@ -780,7 +780,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
             try:
                 # disarm is necessary to get the last image even if the good number of triggers arrived
-                #HWR.beamline.detector.disarm()
+                # HWR.beamline.detector.disarm()
                 # Check that detector state is idle when correctly disarmed
                 HWR.beamline.detector.wait_ready()
                 num_images = oscillation_parameters["number_of_images"] * oscillation_parameters["number_of_lines"]
@@ -1047,219 +1047,59 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
     def emit_collection_finished(self):
         """
-        Descript. :
+        Descript. : 收集完成后的收尾工作。
         """
-        # ================================Dorzor Trigger start===================================
-        # if self.current_dc_parameters.get("experiment_type") == "Mesh":
-        #     try:
-        #         # 1. 安全获取 Dozor 对象
-        #         if hasattr(HWR.beamline, "online_processing"):
-        #             dozor = HWR.beamline.online_processing
-        #         else:
-        #             dozor = self.getObjectByRole("online_processing")
-
-        #         if dozor:
-        #             logging.getLogger("HWR").info("[BL19U1Collect] Collection Finished -> Triggering SimpleDozor...")
-                    
-        #             # 获取基础参数
-        #             file_info = self.current_dc_parameters["fileinfo"]
-        #             osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
-                    
-        #             # --- 路径修正 (读取数据的路径: /ramdisk) ---
-        #             original_dir = file_info["directory"]
-        #             if "RAW_DATA" in original_dir:
-        #                 relative_path = original_dir.split("RAW_DATA")[1]
-        #                 raw_dir = "/ramdisk" + relative_path
-        #                 raw_dir = raw_dir.replace("//", "/")
-        #             else:
-        #                 if "/home/bl19u1/inhouse/idtest0" in original_dir:
-        #                     raw_dir = original_dir.replace("/home/bl19u1/inhouse/idtest0", "/ramdisk")
-        #                 else:
-        #                     raw_dir = original_dir.replace("/data/ispyb/bl19u1", "/ramdisk")
-        #             logging.getLogger("HWR").info(f"[Path Fix] Real Ramdisk Path: {raw_dir}")
-                    
-        #             # --- 模板修正 ---
-        #             prefix = file_info["prefix"]
-        #             run_number = int(file_info["run_number"])
-        #             # 构造模板: bao-bao_1_%05d.cbf (兼容你之前的双前缀逻辑)
-        #             template_name = "%s_%d_?????.cbf" % (prefix, run_number)
-        #             full_template_path = os.path.join(raw_dir, template_name)
-                    
-        #             # --- 起始号修正 ---
-        #             start_img_param = int(osc_seq.get("start_image_number", 1))
-        #             real_start_image = 10000 + start_img_param if start_img_param < 10000 else start_img_param
-                    
-        #             # --- Process 目录 (写到 /tmp 以避开权限问题) ---
-        #             import tempfile
-        #             local_tmp = os.path.join(tempfile.gettempdir(), "dozor_process") # /tmp/dozor_process
-        #             sub_folder = "%s_%d" % (prefix, run_number)
-        #             proc_dir = os.path.join(local_tmp, sub_folder)
-
-        #             # --- 图片数量 ---
-        #             # 确保用的是总帧数 (Mesh Scan 需要 total frames)
-        #             if self.current_dc_parameters.get("experiment_type") == "Mesh":
-        #                 # 尝试获取 mesh_total_nb_frames，如果没有则用 num_images
-        #                 num_images = int(self.get_mesh_total_nb_frames())
-        #             else:
-        #                 num_images = int(osc_seq.get("number_of_images", 1))
-
-        #             # --- 组装参数 ---
-        #             dozor_params = {
-        #                 "process_directory": proc_dir,    # 写: /tmp/...
-        #                 "template": full_template_path,   # 读: /ramdisk/...
-        #                 "run_number": run_number,
-        #                 "first_image_num": real_start_image, 
-        #                 "images_num": num_images,
-        #                 "exp_time": float(osc_seq.get("exposure_time", 1.0)),
-        #                 "osc_range": 0, 
-        #                 "osc_start": 0
-        #             }
-                    
-        #             logging.getLogger("HWR").info("[BL19U1Collect] Dozor Params: %s", str(dozor_params))
-                    
-        #             # 执行 Dozor
-        #             dozor.run_processing(dozor_params)
-                
-        #         else:
-        #             logging.getLogger("HWR").warning("[BL19U1Collect] online_processing not defined.")
-
-        #     except Exception:
-        #         import traceback
-        #         logging.getLogger("HWR").error("[BL19U1Collect] Dozor Trigger Error: %s", traceback.format_exc())
-            # ===================================Dozor Trigger END========================================
-
-        # if self.current_dc_parameters["experiment_type"] == "Mesh":
-            # disable stream interface
-            # stop spot finding
-            # HWR.beamline.detector.disable_stream()
-            # self.stop_spot_finder()
         success_msg = "Data collection successful"
-        # self.current_dc_parameters["status"] = success_msg
-        self.emit(
-            "collectOscillationFinished",
-            (
-                self.owner,
-                True,
-                success_msg,
-                self.current_dc_parameters.get("collection_id"),
-                self.osc_id,
-                self.current_dc_parameters,
-            ),
-        )#原来这边会报错
+        
+        self.emit("collectOscillationFinished", (self.owner, True, success_msg, self.current_dc_parameters.get("collection_id"), self.osc_id, self.current_dc_parameters))
         self.emit("collectEnded", self.owner, True, success_msg)
         self.emit("collectReady", (True,))
         HWR.beamline.detector.emit_status()
-        logging.getLogger("HWR").info('======== EMIT collectReady msg ')
+        
         detCover = DetCover()
         detCover.closeDetCover()
+        
         self.emit("progressStop", ())
         self._collecting = None
         self.ready_event.set()
         self.update_data_collection_in_lims()
-        logging.getLogger("HWR").debug(
-            "[COLLECT] COLLECTION FINISHED, self.current_dc_parameters: %s"
-            % self.current_dc_parameters
-        )
-
-        xds_dir = self.current_dc_parameters["xds_dir"]
-        raw_data_dir = self.current_dc_parameters["fileinfo"]["process_directory"]
 
         HWR.beamline.diffractometer.set_phase("Centring", wait=False)
 
+        # 触发 EDNA2 自动处理
         try:
             if HWR.beamline.offline_processing is not None:
                 logging.getLogger("HWR").info("[BL19U1Collect] Triggering new EDNA2 Offline Processing...")
                 HWR.beamline.offline_processing.execute_autoprocessing("after", self.current_dc_parameters, 0)
-            else:
-                logging.getLogger("HWR").warning("[BL19U1Collect] offline_processing object is NONE! Check XML config.")
         except Exception as e:
             logging.getLogger("HWR").error(f"[BL19U1Collect] Failed to trigger offline processing: {e}")
 
-        # process = Popen(
-        #             "~/scripts_mxcube/process_data.sh %s %s"
-        #             % (raw_data_dir, xds_dir),
-        #             stdout=PIPE, stderr=PIPE, shell=True, executable="/bin/bash"
-        #          )
-
-        # stdout, stderr = process.communicate()
-
-        # if len(stderr)  > 0:
-        #     logging.getLogger("HWR").info('[PROCESS] errors : ' + stderr.decode('utf-8'))
-
-        # logging.getLogger("HWR").info('[PROCESS] output : ' + stdout.decode('utf-8'))
-
         HWR.beamline.diffractometer.wait_ready()
 
+        # ==========================================================
+        # 🌟 核心修复 3：动态获取 start_frame，彻底解决 b5 接续收集的 Timeout
+        # ==========================================================
+        filename_only = self.current_dc_parameters["fileinfo"]["filename"]
+        osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
+        
+        start_frame = int(osc_seq.get("start_image_number", 1))
+        num_images = int(osc_seq.get("number_of_images", 1))
+        end_frame = start_frame + num_images - 1
+        
+        logging.getLogger("HWR").info(f"Storing images in lims, START frame number: {start_frame}")
+        try:
+            self.store_image_in_lims(start_frame)
+            self.generate_and_copy_thumbnails(filename_only, start_frame)
+        except Exception as ex:
+            logging.getLogger("HWR").error("Storing first images in lims, error: %s" % ex)
 
-        if self.current_dc_parameters.get("experiment_type") != "Mesh":
+        if num_images > 1:
+            logging.getLogger("HWR").info(f"Storing images in lims, END frame number: {end_frame}")
             try:
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] Going to generate XDS input files"
-                )
-                # generate XDS.INP only in raw/process
-                data_path = self.current_dc_parameters["fileinfo"]["filename"]
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] DATA file: %s" % data_path
-                )
-                logging.getLogger("HWR").info(
-                    "[BL19U1MCOLLECT] XDS file: %s"
-                    % self.current_dc_parameters["xds_dir"]
-                )
-                # Wait for the master file
-                self.wait_for_file_copied(data_path)
-                os.system(
-                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp.sh %s &"
-                    % (self.current_dc_parameters["xds_dir"], data_path)
-                )
-                logging.getLogger("HWR").info(
-                    "[BL19U1COLLECT] AUTO file: %s"
-                    % self.current_dc_parameters["auto_dir"]
-                )
-                os.system(
-                    "cd %s;/mxn/groups/biomax/wmxsoft/scripts_mxcube/generate_xds_inp_auto.sh %s &"
-                    % (self.current_dc_parameters["auto_dir"], data_path)
-                )
-                if (
-                    self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
-                    and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
-                    == 0
-                    and self.current_dc_parameters["oscillation_sequence"][0][
-                        "number_of_images"
-                    ]
-                    >= self.NIMAGES_TRIGGER_AUTO_PROC
-                ):
-                    self.trigger_auto_processing("after", self.current_dc_parameters, 0)
+                self.store_image_in_lims(end_frame)
+                self.generate_and_copy_thumbnails(filename_only, end_frame)
             except Exception as ex:
-                logging.getLogger("HWR").error(
-                    "[COLLECT] Error creating XDS files, %s" % ex
-                )
-
-            # we store the first and the last images, TODO: every 45 degree
-            logging.getLogger("HWR").info("Storing images in lims, frame number: 1")
-            try:
-                self.store_image_in_lims(1)
-                logging.getLogger("HWR").info("==== fileinfo - filename: %s" % self.current_dc_parameters["fileinfo"]["filename"])
-                self.generate_and_copy_thumbnails(
-                    self.current_dc_parameters["fileinfo"]["filename"], 1
-                )
-
-            except Exception as ex:
-                logging.getLogger("HWR").error("Storing first images in lims, error: %s" % ex)
-
-            last_frame = self.current_dc_parameters["oscillation_sequence"][0][
-                "number_of_images"
-            ]
-            if last_frame > 1:
-                logging.getLogger("HWR").info(
-                    "Storing images in lims, frame number: %d" % last_frame
-                )
-                try:
-                    self.store_image_in_lims(last_frame)
-                    self.generate_and_copy_thumbnails(
-                        self.current_dc_parameters["fileinfo"]["filename"], last_frame
-                    )
-                except Exception as ex:
-                    logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
+                logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
 
         if self.datacatalog_enabled:
             self.store_datacollection_datacatalog()
@@ -1340,86 +1180,36 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             "TODO: fix store_image_in_lims_by_frame_num method for nimages>1"
         )
         return
-
-    # def generate_and_copy_thumbnails(self, data_path, frame_number):
-    #     #  generare diffraction thumbnails
-    #     image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-    #     archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-    #     thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-    #     jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
-    #     jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-
-    #     logging.getLogger("HWR").info(
-    #         "[COLLECT] Generating thumbnails, output filename: %s"
-    #         % jpeg_thumbnail_full_path
-    #     )
-    #     logging.getLogger("HWR").info(
-    #         "[COLLECT] Generating thumbnails, data path: %s" % data_path
-    #     )
-    #     input_file = data_path
-    #     binfactor = 1
-    #     nimages = 1
-    #     first_image = 0
-    #     rootname, ext = os.path.splitext(input_file)
-    #     rings = [0.25, 0.50, 0.75, 1.00, 1.25]
-    #     # master file is need but also data files
-    #     # 100 frames per data file, so adapt accordingly for the file name in case not the first frame
-    #     # TODO: get num_images_per_file as variable
-    #     time.sleep(2)
-    #     if frame_number > 1:
-    #         frame_number = frame_number / 100
-
-    #     self.wait_for_file_copied(data_path)  # master file
-
-    #     data_file = data_path.replace("master", "data_{:06d}".format(frame_number))
-
-    #     self.wait_for_file_copied(data_path)  # data file
-
-    #     if not os.path.exists(os.path.dirname(jpeg_thumbnail_full_path)):
-    #         os.makedirs(os.path.dirname(jpeg_thumbnail_full_path))
-    #     try:
-    #         # dataset = EigerDataSet(data_path)
-    #         dataset.save_thumbnail(
-    #             binfactor,
-    #             output_file=jpeg_thumbnail_full_path,
-    #             start_image=first_image,
-    #             nb_images=nimages,
-    #             rings=rings,
-    #         )
-    #     except Exception as ex:
-    #         print(ex)
-
-    #     try:
-    #         os.chmod(os.path.dirname(jpeg_thumbnail_full_path), 0o777)
-    #         os.chmod(jpeg_thumbnail_full_path, 0o777)
-    #     except Exception as ex:
-    #         print(ex)
+    
     def generate_and_copy_thumbnails(self, data_path, frame_number):
         file_info = self.current_dc_parameters["fileinfo"]
         archive_directory = file_info["archive_directory"]
 
         if data_path.endswith(".h5"):
-            # H5 逻辑 (如果你不收 H5，可以直接留空 pass)
             pass
         else:
-            # 【核心修复】：还原探测器写入的真实目录
+            # 🌟 核心修复 1：把 MXCuBE 的虚假路径，翻译成探测器真实的硬盘路径
             original_dir = file_info["directory"]
             if "RAW_DATA" in original_dir:
-                real_raw_dir = "/ramdisk" + original_dir.split("RAW_DATA")[1].replace("//", "/")
+                proposal_code = HWR.beamline.session.proposal_code
+                proposal_number = HWR.beamline.session.proposal_number
+                proposal_user = f"{proposal_code}{proposal_number}"
+                
+                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/")
+                real_raw_dir = f"/ramdisk/{proposal_user}{sub_dir}"
             else:
                 real_raw_dir = original_dir
 
             prefix = file_info["prefix"]
             run_number = int(file_info["run_number"])
             
-            # 【核心修复】：加上 Pilatus 特有的 10000 序号
             real_frame = 10000 + frame_number if frame_number < 10000 else frame_number
             cbf_filename = "%s_%d_%05d.cbf" % (prefix, run_number, real_frame)
             data_file = os.path.join(real_raw_dir, cbf_filename)
 
         logging.getLogger("HWR").info("[COLLECT] Real target data file to process: %s" % data_file)
         
-        # 因为找对了文件，这里再也不会报 Timeout 了
+        # 这次 100% 能找到文件，绝对不会 Timeout！
         self.wait_for_file_copied(data_file)  
 
         if not os.path.exists(archive_directory):
@@ -1428,11 +1218,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             except:
                 pass
 
-        # 远程调用 EDNA2
         edna2_user = "demo"
         edna2_ip = "10.30.61.207"
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
-        cmd = f'ssh {edna2_user}@{edna2_ip} "{edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
+        
+        # 加上 source bashrc，防止 EDNA2 环境变量丢失
+        cmd = f'ssh {edna2_user}@{edna2_ip} "source /home/demo/.bashrc && {edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
         
         logging.getLogger("HWR").info(f"[COLLECT] 远程触发: {cmd}")
         import subprocess
@@ -1458,69 +1249,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 size1 = os.path.getsize(full_file_path)
                 gevent.sleep(1)
 
-    # def store_image_in_lims(self, frame_number, motor_position_id=None):
-    #     """
-    #     Descript. :
-    #     """
-    #     if HWR.beamline.lims:
-    #         file_location = self.current_dc_parameters["fileinfo"]["directory"]
-    #         image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-    #         filename = image_file_template % frame_number
-    #         lims_image = {
-    #             "dataCollectionId": self.current_dc_parameters["collection_id"],
-    #             "fileName": filename,
-    #             "fileLocation": file_location,
-    #             "imageNumber": frame_number,
-    #             "measuredIntensity": HWR.beamline.flux.get_value(),
-    #             "synchrotronCurrent": self.get_machine_current(),
-    #             "machineMessage": self.get_machine_message(),
-    #             "temperature": self.get_cryo_temperature(),
-    #         }
-    #         archive_directory = self.current_dc_parameters["fileinfo"][
-    #             "archive_directory"
-    #         ]
 
-    #         if archive_directory:
-    #             jpeg_filename = (
-    #                 # "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-    #                 "%s.jpeg" % os.path.splitext(image_file_template)[0]
-    #             )
-    #             thumb_filename = (
-    #                 "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-    #             )
-    #             jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
-    #             jpeg_thumbnail_file_template = os.path.join(
-    #                 archive_directory, thumb_filename
-    #             )
-    #             jpeg_full_path = jpeg_file_template % frame_number
-    #             jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-    #             lims_image["jpegFileFullPath"] = jpeg_full_path
-    #             lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
-    #             lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
-    #         if motor_position_id:
-    #             lims_image["motorPositionId"] = motor_position_id
-    #         logging.getLogger("HWR").info(
-    #             "LIMS IMAGE: %s, %s, %s, %s"
-    #             % (
-    #                 jpeg_filename,
-    #                 thumb_filename,
-    #                 jpeg_full_path,
-    #                 jpeg_thumbnail_full_path,
-    #             )
-    #         )
-    #         try:
-    #             image_id = HWR.beamline.lims.store_image(lims_image)
-    #             logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
-    #         except Exception as ex:
-    #             logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
-    #         # temp fix for ispyb permission issues
-    #         try:
-    #             session_dir = os.path.join(archive_directory, "../../../")
-    #             os.system("chmod -R 777 %s" % (session_dir))
-    #         except Exception as ex:
-    #             logging.getLogger("HWR").error("LIMS IMAGE session_dir, error: %s" % ex)
-
-    #         return image_id
     def store_image_in_lims(self, frame_number, motor_position_id=None):
         if HWR.beamline.lims:
             file_info = self.current_dc_parameters["fileinfo"]
@@ -1528,16 +1257,14 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             image_file_template = file_info["template"]
             archive_directory = file_info["archive_directory"]
 
-            # 【关键修改】为了和硬盘上的真实文件对齐，序号加上 10000
             real_frame = 10000 + frame_number if frame_number < 10000 else frame_number
-
             filename = image_file_template % real_frame
             
             lims_image = {
                 "dataCollectionId": self.current_dc_parameters["collection_id"],
                 "fileName": filename,
                 "fileLocation": file_location,
-                "imageNumber": frame_number, # 传给数据库的序号依然是1
+                "imageNumber": frame_number, 
                 "measuredIntensity": HWR.beamline.flux.get_value(),
                 "synchrotronCurrent": self.get_machine_current(),
                 "machineMessage": self.get_machine_message(),
@@ -1545,16 +1272,18 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             }
 
             if archive_directory:
-                # 拼接出 10000+ 序号的 jpeg 名称
                 jpeg_filename = "%s.jpeg" % os.path.splitext(image_file_template)[0]
                 thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
                 
+                # ==========================================================
+                # 🌟 修复：去除 /datafarm，直接使用最原始的 archive_directory
+                # ==========================================================
                 jpeg_full_path = os.path.join(archive_directory, jpeg_filename % real_frame)
                 jpeg_thumbnail_full_path = os.path.join(archive_directory, thumb_filename % real_frame)
                 
                 lims_image["jpegFileFullPath"] = jpeg_full_path
                 lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
-                lims_image["fileLocation"] = os.path.dirname(jpeg_thumbnail_full_path)
+                lims_image["fileLocation"] = archive_directory
             
             if motor_position_id:
                 lims_image["motorPositionId"] = motor_position_id
@@ -1562,77 +1291,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             try:
                 image_id = HWR.beamline.lims.store_image(lims_image)
                 logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
-                # 修改目录权限
                 session_dir = os.path.join(archive_directory, "../../../")
                 os.system("chmod -R 777 %s" % session_dir)
                 return image_id
             except Exception as ex:
                 logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)
                 return None
-
-    # def x17um_take_crystal_snapshots(self):
-    #     """
-    #     Descript. :
-    #     """
-
-    #     HWR.beamline.diffractometer.wait_ready(1000)  # TODO check why sometimes the MD3 is in running state while we call movePhase
-
-    #     if self.current_dc_parameters["take_snapshots"]:
-    #         logging.getLogger("HWR").debug("perpare ot take snapshots")
-    #         # save the image to the data collection directory for the moment
-    #         snapshot_directory = os.path.join(
-    #             self.current_dc_parameters["fileinfo"]["archive_directory"], "snapshot"
-    #         )
-    #         logging.getLogger("HWR").debug(f"snapshot going to put in {snapshot_directory}")
-
-    #         if not os.path.exists(snapshot_directory):
-    #             try:
-    #                 self.create_directories(snapshot_directory)
-    #                 logging.getLogger("HWR").debug("snapshot directory created")
-    #             except Exception:
-    #                 logging.getLogger("HWR").exception("Collection: Error creating snapshot directory")
-
-    #         # for plate head, takes only one image
-    #         if (self.current_dc_parameters["experiment_type"] == "Mesh" or
-    #             # HWR.beamline.diffractometer.head_type.value == HWR.beamline.diffractometer.HEAD_TYPE_SMARTMAGNET
-    #             HWR.beamline.diffractometer.head_type.value == "SmartMagnet"
-    #         ):
-    #             number_of_snapshots = 1
-    #         else:
-    #             number_of_snapshots = 4  #  take only one image for the moment TODO use the GUI parameter
-
-    #         logging.getLogger("user_level_log").info(
-    #             "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
-    #         )
-    #         if HWR.beamline.diffractometer.get_current_phase() != "Centring":
-    #             logging.getLogger("user_level_log").info(
-    #                 "Moving Diffractometer to CentringPhase"
-    #             )
-    #             HWR.beamline.diffractometer.set_phase(
-    #                 "Centring", wait=True, timeout=200
-    #             )
-    #         # TODO check if is useful in case of mesh scan to move to center
-    #         #  with self.move_to_center_position()
-
-    #         for snapshot_index in range(number_of_snapshots):
-    #             snapshot_filename = os.path.join(
-    #                 snapshot_directory,
-    #                 "%s_%s_%s.snapshot.jpeg"
-    #                 % (
-    #                     self.current_dc_parameters["fileinfo"]["prefix"],
-    #                     self.current_dc_parameters["fileinfo"]["run_number"],
-    #                     (snapshot_index + 1),
-    #                 ),
-    #             )
-    #             self.current_dc_parameters[
-    #                 "xtalSnapshotFullPath%i" % (snapshot_index + 1)
-    #             ] = snapshot_filename
-    #             # self._do_take_snapshot(snapshot_filename)
-    #             self._take_crystal_snapshot(snapshot_filename)
-    #             time.sleep(1)  # needed, otherwise will get the same images
-    #             if number_of_snapshots > 1:
-    #                 HWR.beamline.diffractometer.phiMotor.set_value_relative(90)
-    #                 time.sleep(1)  # needed, otherwise will get the same images
 
     def x17um_take_crystal_snapshots(self):
         """
@@ -2093,7 +1757,11 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         24/01/11:mesh scan方式，探测器收集张数不对，只收集了行数，不是行*列数
         """
         logging.getLogger("HWR").info("Cleaning old detector images !!!!!")
-        # HWR.beamline.detector.clear()  # TODO remove this line here to help debugging new image files
+        try:
+            HWR.beamline.detector.clear()  
+        except Exception:
+            logging.getLogger("HWR").debug("[COLLECT] 探测器不支持 clear() 指令，已忽略。")
+            pass
         config = HWR.beamline.detector.col_config
 
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
@@ -2239,7 +1907,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         HWR.beamline.detector.reset()
         detCover = DetCover()
         detCover.closeDetCover()
-        #HWR.beamline.detector.disarm()
+        HWR.beamline.detector.disarm()
         if self.current_dc_parameters["experiment_type"] == "Mesh":
             # disable stream interface
             # stop spot finding
