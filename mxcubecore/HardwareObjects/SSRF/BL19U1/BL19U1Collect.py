@@ -548,7 +548,13 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         _subdir = file_parameters["directory"].split('RAW_DATA')[1]
         _date = datetime.now().strftime('%Y%m%d')
         # _filename = '/', _date, _subdir, '/', file_parameters["filename"]
-        _filename = _subdir, '/', file_parameters["filename"]
+        # _filename = _subdir, '/', file_parameters["filename"]
+        proposal_code = HWR.beamline.session.proposal_code
+        proposal_number = HWR.beamline.session.proposal_number
+        proposal_user = f"{proposal_code}{proposal_number}"
+
+        # 重新拼装 _filename，把 proposal_user 塞到最前面！
+        _filename = '/', proposal_user, _subdir, file_parameters["filename"]
         logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename}')
 
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
@@ -602,11 +608,23 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         # put snapshot to be with raw data cbf
 
         if self.current_dc_parameters['take_snapshots']:
+            proposal_code = HWR.beamline.session.proposal_code
+            proposal_number = HWR.beamline.session.proposal_number
+            proposal_user = f"{proposal_code}{proposal_number}"
+
+            logging.getLogger("HWR").info(f"proposal_code: {proposal_code}")
+            logging.getLogger("HWR").info(f"proposal_number: {proposal_number}")
+            logging.getLogger("HWR").info(f"proposal_user: {proposal_user}")
+
             snapshot_path = self.current_dc_parameters['xtalSnapshotFullPath1']
             logging.getLogger('HWR').debug(f"the path of snapshot: {snapshot_path}")
             snapshot_name = snapshot_path.split('/')[-1]
-            snapshot_path_in_ppu2 = "/datafarm"+saving_directory+"/"
-            snapshot_path_in_ppu2_withname = "/datafarm"+saving_directory+"/"+snapshot_name
+            # 安全剔除 saving_directory 可能自带的 /ramdisk 前缀，提取出纯净的 /2026cbftest/11/
+            subdir = saving_directory.replace("/ramdisk", "")
+
+            # /datafarm/ramdisk/opid291/2026
+            snapshot_path_in_ppu2 = f"/datafarm/ramdisk/{subdir}/"
+            snapshot_path_in_ppu2_withname = f"{snapshot_path_in_ppu2}{snapshot_name}"
 
             user_name = self.getProperty("ppu2_user")
             remote_host_ip = self.getProperty("ppu2_ip")
