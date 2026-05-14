@@ -1065,86 +1065,10 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         self.update_data_collection_in_lims()
 
         HWR.beamline.diffractometer.set_phase("Centring", wait=False)
-
-        try:
-            import json, tempfile, subprocess
-            from datetime import datetime
-
-            exp_type = self.current_dc_parameters.get("experiment_type", "")
-            prefix = self.current_dc_parameters["fileinfo"]["prefix"]
-            run_number = self.current_dc_parameters["fileinfo"]["run_number"]
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # ==========================================================
-            # 🌟 核心修复 4：把 MXCuBE 的虚假长路径，翻译成真实的底层物理路径
-            # ==========================================================
-            original_dir = self.current_dc_parameters["fileinfo"]["directory"]
-            
-            if "RAW_DATA" in original_dir:
-                proposal_code = HWR.beamline.session.proposal_code
-                proposal_number = HWR.beamline.session.proposal_number
-                proposal_user = f"{proposal_code}{proposal_number}"
-                
-                # 剔除 RAW_DATA 前面的冗余路径，拼接出真实的 /ramdisk/...
-                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/")
-                real_data_dir = f"/ramdisk/{proposal_user}{sub_dir}"
-            else:
-                real_data_dir = original_dir
-
-            # 动态计算第一张图片的真实文件名 (例如: b4-b4_1_10001.cbf)
-            osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
-            start_frame = int(osc_seq.get("start_image_number", 1))
-            real_frame = 10000 + start_frame if start_frame < 10000 else start_frame
-            
-            real_data_file = "%s_%d_%05d.cbf" % (prefix, int(run_number), real_frame)
-                
-            full_data_path = os.path.join(real_data_dir, real_data_file)
-            logging.getLogger("HWR").info(f"[OFFLINE] 真实数据路径已解析为: {full_data_path}")
-            
-            self.current_dc_parameters["detectorType"] = "pilatus6m"
-            self.current_dc_parameters["detectorModel"] = "6M"
-
-            if exp_type == "Mesh":
-                # 给 DozorM 喂专属真实参数
-                self.current_dc_parameters["dozorAllFile"] = full_data_path
-            elif exp_type in ("OSC", "Helical"):
-                # 给 XDS 喂专属真实参数 (XDS 脚本里期待的是 imagePath 列表)
-                self.current_dc_parameters["imagePath"] = [full_data_path]
-
-            # 2. 将当前收集的所有上下文参数打包存入一个专属的 JSON 文件
-            json_filename = "offline_input_%s_%s_%s_%s.json" % (exp_type, prefix, run_number, timestamp)
-            local_json_path = os.path.join(tempfile.gettempdir(), json_filename)
-
-            with open(local_json_path, 'w') as f:
-                json.dump(self.current_dc_parameters, f, indent=4)
-            
-            logging.getLogger("HWR").info("[OFFLINE] 成功生成离线分析参数文件: %s" % local_json_path)
-
-            # 3. 智能路由分发 (使用 Popen 异步执行，绝不卡顿 MXCuBE)
-            # 请确保 /opt/edna2/trigger_offline.sh 脚本存在且有执行权限
-            trigger_script = "/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/run_edna2_offline_wrapper.sh" 
-            
-            cmd = 'bash "%s" "%s" "%s"' % (trigger_script, exp_type, local_json_path)
-            
-            if exp_type == "Mesh":
-                logging.getLogger("HWR").info("[OFFLINE] 识别为网格扫描，即将触发 DozorM...")
-                logging.getLogger("HWR").info(f"[OFFLINE] 执行命令: {cmd}") 
-                subprocess.Popen(cmd, shell=True, close_fds=True)
-
-            elif exp_type in ("OSC", "Helical"):
-                logging.getLogger("HWR").info("[OFFLINE] 识别为单晶收集，即将触发 XDS...")
-                logging.getLogger("HWR").info(f"[OFFLINE] 执行命令: {cmd}")
-                subprocess.Popen(cmd, shell=True, close_fds=True)
-
-        except Exception as e:
-            logging.getLogger("HWR").error("[OFFLINE] 触发离线分析失败: %s" % e)
-            import traceback
-            logging.getLogger("HWR").error(traceback.format_exc())
-
         HWR.beamline.diffractometer.wait_ready()
 
         # ==========================================================
-        # 🌟 核心修复 3：动态获取 start_frame，彻底解决接续收集的 Timeout
+        # 🌟 步骤 1：先处理缩略图（利用它自带的 wait_for_file 锁死等待硬盘同步）
         # ==========================================================
         filename_only = self.current_dc_parameters["fileinfo"]["filename"]
         osc_seq = self.current_dc_parameters["oscillation_sequence"][0]
@@ -1164,10 +1088,79 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             logging.getLogger("HWR").info(f"Storing images in lims, END frame number: {end_frame}")
             try:
                 self.store_image_in_lims(end_frame)
+                # ！！！这里非常关键：它会一直阻塞等待，直到最后一张图彻底同步到 NFS 硬盘上！！！
                 self.generate_and_copy_thumbnails(filename_only, end_frame)
             except Exception as ex:
                 logging.getLogger("HWR").error("Storing last images in lims, error: %s" % ex)
 
+        # ==========================================================
+        # 🌟 步骤 2：确认所有图片已全部落盘后，再安全触发 XDS！
+        # ==========================================================
+        try:
+            import json, tempfile, subprocess
+            from datetime import datetime
+
+            exp_type = self.current_dc_parameters.get("experiment_type", "")
+            prefix = self.current_dc_parameters["fileinfo"]["prefix"]
+            run_number = self.current_dc_parameters["fileinfo"]["run_number"]
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            original_dir = self.current_dc_parameters["fileinfo"]["directory"]
+            
+            if "RAW_DATA" in original_dir:
+                proposal_code = HWR.beamline.session.proposal_code
+                proposal_number = HWR.beamline.session.proposal_number
+                proposal_user = f"{proposal_code}{proposal_number}"
+                
+                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/")
+                real_data_dir = f"/ramdisk/{proposal_user}{sub_dir}"
+            else:
+                real_data_dir = original_dir
+
+            real_frame = 10000 + start_frame if start_frame < 10000 else start_frame
+            real_data_file = "%s_%d_%05d.cbf" % (prefix, int(run_number), real_frame)
+                
+            full_data_path = os.path.join(real_data_dir, real_data_file)
+            logging.getLogger("HWR").info(f"[OFFLINE] 真实数据路径已解析为: {full_data_path}")
+            
+            self.current_dc_parameters["detectorType"] = "pilatus6m"
+            self.current_dc_parameters["detectorModel"] = "6M"
+
+            if exp_type == "Mesh":
+                self.current_dc_parameters["dozorAllFile"] = full_data_path
+            elif exp_type in ("OSC", "Helical"):
+                self.current_dc_parameters["imagePath"] = [full_data_path]
+
+            json_filename = "offline_input_%s_%s_%s_%s.json" % (exp_type, prefix, run_number, timestamp)
+            local_json_path = os.path.join(tempfile.gettempdir(), json_filename)
+
+            with open(local_json_path, 'w') as f:
+                json.dump(self.current_dc_parameters, f, indent=4)
+            
+            logging.getLogger("HWR").info("[OFFLINE] 成功生成离线分析参数文件: %s" % local_json_path)
+
+            trigger_script = "/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/run_edna2_offline_wrapper.sh" 
+            
+            cmd = 'bash "%s" "%s" "%s"' % (trigger_script, exp_type, local_json_path)
+            
+            if exp_type == "Mesh":
+                logging.getLogger("HWR").info("[OFFLINE] 识别为网格扫描，即将触发 DozorM...")
+                logging.getLogger("HWR").info(f"[OFFLINE] 执行命令: {cmd}") 
+                subprocess.Popen(cmd, shell=True, close_fds=True)
+
+            elif exp_type in ("OSC", "Helical"):
+                logging.getLogger("HWR").info(f"[OFFLINE] 所有 {num_images} 张图片均已确认落盘，开始安全触发 XDS...")
+                logging.getLogger("HWR").info(f"[OFFLINE] 执行命令: {cmd}")
+                subprocess.Popen(cmd, shell=True, close_fds=True)
+
+        except Exception as e:
+            logging.getLogger("HWR").error("[OFFLINE] 触发离线分析失败: %s" % e)
+            import traceback
+            logging.getLogger("HWR").error(traceback.format_exc())
+
+        # ==========================================================
+        # 🌟 步骤 3：最后提交数据字典
+        # ==========================================================
         if self.datacatalog_enabled:
             self.store_datacollection_datacatalog()
 
