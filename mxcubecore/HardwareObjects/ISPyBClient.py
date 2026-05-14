@@ -784,6 +784,8 @@ class ISPyBClient(HardwareObject):
             new_session_dict["scheduled"] = 0
             new_session_dict["nbShifts"] = 3
             new_session_dict["comments"] = "Session created by the BCM"
+            new_session_dict["lastUpdate"] = start_time
+
             session_id = self.create_session(new_session_dict)
             new_session_dict["sessionId"] = session_id
 
