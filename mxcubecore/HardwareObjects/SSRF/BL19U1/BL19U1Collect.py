@@ -544,26 +544,56 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             raise Exception("[COLLECT] Error preparing detector: %s" % ex)
 
 
+        # file_parameters = self.current_dc_parameters["fileinfo"]
+        # _subdir = file_parameters["directory"].split('RAW_DATA')[1]
+        # _date = datetime.now().strftime('%Y%m%d')
+        # # _filename = '/', _date, _subdir, '/', file_parameters["filename"]
+        # # _filename = _subdir, '/', file_parameters["filename"]
+        # proposal_code = HWR.beamline.session.proposal_code
+        # proposal_number = HWR.beamline.session.proposal_number
+        # proposal_user = f"{proposal_code}{proposal_number}"
+
+        # # 重新拼装 _filename，把 proposal_user 塞到最前面！
+        # _filename = '/', proposal_user, _subdir, file_parameters["filename"]
+        # logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename}')
+
+        # oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
+
+
+        # # 下行代码包括插入数据库操作，可以获取此次收集数据的job_id,并且同时获取文件路径
+        # job_id ,saving_directory = HWR.beamline.detector.set_detector_filenames(oscillation_parameters["number_of_images"],
+        #                                              oscillation_parameters["start_image_number"],
+        #                                              "".join(_filename), self.collection_uuid);
+
         file_parameters = self.current_dc_parameters["fileinfo"]
         _subdir = file_parameters["directory"].split('RAW_DATA')[1]
-        _date = datetime.now().strftime('%Y%m%d')
-        # _filename = '/', _date, _subdir, '/', file_parameters["filename"]
-        # _filename = _subdir, '/', file_parameters["filename"]
+        
         proposal_code = HWR.beamline.session.proposal_code
         proposal_number = HWR.beamline.session.proposal_number
         proposal_user = f"{proposal_code}{proposal_number}"
 
-        # 重新拼装 _filename，把 proposal_user 塞到最前面！
-        _filename = '/', proposal_user, _subdir, file_parameters["filename"]
-        logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename}')
+        # --- 核心修复开始 ---
+        # 1. 如果 _subdir 以 '/' 开头，os.path.join 会将其视为绝对路径并覆盖前面的字符串，因此需要用 lstrip('/') 剥离首部斜杠
+        _subdir_clean = _subdir.lstrip("/")
+        
+        # 2. 使用 os.path.join 自动根据系统规则插入 '/' 分隔符
+        _filename_str = os.path.join("/", proposal_user, _subdir_clean, file_parameters["filename"])
+        
+        # 3. 使用 os.path.normpath 清理路径中可能混入的双斜杠 (例如把 //test 变成 /test)
+        _filename_str = os.path.normpath(_filename_str)
+        # --- 核心修复结束 ---
+
+        logging.getLogger('HWR').debug(f'_filename in BL19U1Collect.py: {_filename_str}')
 
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
 
-
-        # 下行代码包括插入数据库操作，可以获取此次收集数据的job_id,并且同时获取文件路径
-        job_id ,saving_directory = HWR.beamline.detector.set_detector_filenames(oscillation_parameters["number_of_images"],
-                                                     oscillation_parameters["start_image_number"],
-                                                     "".join(_filename), self.collection_uuid);
+        # 传入时直接传 _filename_str 字符串对象
+        job_id ,saving_directory = HWR.beamline.detector.set_detector_filenames(
+            oscillation_parameters["number_of_images"],
+            oscillation_parameters["start_image_number"],
+            _filename_str, 
+            self.collection_uuid
+        )
 
         # 下面准备把收集的基本参数传入到 crystallography_data_basic 表
 
@@ -648,8 +678,8 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
         # HWR.beamline.diffractometer.save_centring_positions();
         if self.current_dc_parameters['take_snapshots']:
-            return job_id,distance,"".join(_filename),transfer_snapshot_args
-        return job_id,distance,"".join(_filename)
+            return job_id, distance, _filename_str, transfer_snapshot_args
+        return job_id, distance, _filename_str
     # -------------------------------------------------------------------------------
 
 
@@ -1283,12 +1313,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
         
         # 加上 source bashrc，防止 EDNA2 环境变量丢失
-        cmd = f'ssh {edna2_user}@{edna2_ip} "source /home/demo/.bashrc && {edna2_python_env} /opt/edna2/edna2_upload_script/make_thumbnail.py {data_file} {archive_directory}"'
+        cmd = f'ssh -o BatchMode=yes {edna2_user}@{edna2_ip} "source /home/demo/.bashrc && {edna2_python_env} /opt/edna2/edna2_upload_script/make_thumbnail.py {data_file} {archive_directory}"'
         
         logging.getLogger("HWR").info(f"[COLLECT] 远程触发: {cmd}")
         import subprocess
         try:
-            subprocess.Popen(cmd, shell=True)
+            subprocess.Popen(cmd, shell=True, close_fds=True)
         except Exception as ex:
             logging.getLogger("HWR").error(f"失败: {ex}")
 
