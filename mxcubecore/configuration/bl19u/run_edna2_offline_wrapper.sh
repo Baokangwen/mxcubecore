@@ -26,7 +26,7 @@ if [ "$WORKFLOW_TYPE" == "Mesh" ]; then
 
         echo "Running DozorM Pipeline for: $REMOTE_JSON"
         # 使用 nohup 后台执行，让 SSH 连接瞬间释放
-        nohup python /opt/edna2/run_dozorm_pipeline.py "$REMOTE_JSON" > /tmp/dozorm_remote.log 2>&1 &
+        nohup python /opt/edna2/edna2_run_script/run_dozorm_pipeline.py "$REMOTE_JSON" > /tmp/dozorm_remote.log 2>&1 &
 EOF
 
 elif [ "$WORKFLOW_TYPE" == "OSC" ] || [ "$WORKFLOW_TYPE" == "Helical" ]; then
@@ -40,7 +40,7 @@ elif [ "$WORKFLOW_TYPE" == "OSC" ] || [ "$WORKFLOW_TYPE" == "Helical" ]; then
 
         echo "Running XDS Pipeline for: $REMOTE_JSON"
         # 使用 nohup 后台执行
-        nohup python /opt/edna2/run_xds_pipeline.py "$REMOTE_JSON" > /tmp/xds_remote.log 2>&1 &
+        nohup python /opt/edna2/edna2_run_script/run_xds_pipeline.py "$REMOTE_JSON" > /tmp/xds_remote.log 2>&1 &
 EOF
 
 else

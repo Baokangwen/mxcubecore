@@ -1283,7 +1283,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
         
         # 加上 source bashrc，防止 EDNA2 环境变量丢失
-        cmd = f'ssh {edna2_user}@{edna2_ip} "source /home/demo/.bashrc && {edna2_python_env} /opt/edna2/make_thumbnail.py {data_file} {archive_directory}"'
+        cmd = f'ssh {edna2_user}@{edna2_ip} "source /home/demo/.bashrc && {edna2_python_env} /opt/edna2/edna2_upload_script/make_thumbnail.py {data_file} {archive_directory}"'
         
         logging.getLogger("HWR").info(f"[COLLECT] 远程触发: {cmd}")
         import subprocess
