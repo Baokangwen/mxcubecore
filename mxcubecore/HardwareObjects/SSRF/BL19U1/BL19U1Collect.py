@@ -1135,8 +1135,8 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             run_number = self.current_dc_parameters["fileinfo"]["run_number"]
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
+            # 1. 依然解析真实的图片路径给 EDNA2 做数据源
             original_dir = self.current_dc_parameters["fileinfo"]["directory"]
-            
             if "RAW_DATA" in original_dir:
                 proposal_code = HWR.beamline.session.proposal_code
                 proposal_number = HWR.beamline.session.proposal_number
@@ -1158,16 +1158,58 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
 
             if exp_type == "Mesh":
                 self.current_dc_parameters["dozorAllFile"] = full_data_path
+                
+                # =========================================================
+                # 🌟 强行纠正 2D Mesh 的核心画图参数！
+                # =========================================================
+                try:
+                    real_total_frames = getattr(self, "mesh_total_nb_frames", 1)
+                    real_num_lines = getattr(self, "mesh_num_lines", 1)
+                    
+                    # 1. 纠正行列数
+                    self.current_dc_parameters["oscillation_sequence"][0]["number_of_images"] = real_total_frames
+                    self.current_dc_parameters["oscillation_sequence"][0]["number_of_lines"] = real_num_lines
+                    
+                    # 2. 算出行列的格子数
+                    num_cols = real_total_frames // real_num_lines if real_num_lines > 0 else 1
+                    num_rows = real_num_lines
+                    
+                    # 3. 计算物理步长 (微米)，避免除以零
+                    mesh_range = getattr(self, "mesh_range", {"horizontal_range": num_cols*50, "vertical_range": num_rows*50})
+                    # 如果只有 1 列/行，除数不能为 0
+                    step_h = mesh_range.get("horizontal_range", 50) / max(1, (num_cols - 1)) if num_cols > 1 else mesh_range.get("horizontal_range", 50)
+                    step_v = mesh_range.get("vertical_range", 50) / max(1, (num_rows - 1)) if num_rows > 1 else mesh_range.get("vertical_range", 50)
+                    
+                    # 4. 硬塞给后端的 JSON
+                    self.current_dc_parameters["step_h"] = step_h
+                    self.current_dc_parameters["step_v"] = step_v
+                    self.current_dc_parameters["grid_step_x"] = step_h # 双重保险
+                    self.current_dc_parameters["grid_step_y"] = step_v
+                    
+                    logging.getLogger("HWR").info(f"[OFFLINE] 修正画图参数: StepH={step_h:.2f}um, StepV={step_v:.2f}um")
+                except Exception as e:
+                    logging.getLogger("HWR").error(f"[OFFLINE] 修正二维网格画图参数失败: {e}")
+                    
             elif exp_type in ("OSC", "Helical"):
                 self.current_dc_parameters["imagePath"] = [full_data_path]
 
+            # =========================================================
+            # 🚀 核心修复：把 JSON 写到 PROCESSED_DATA 目录，避开权限拦截！
+            # =========================================================
+            process_dir = self.current_dc_parameters["fileinfo"]["process_directory"]
+            if not os.path.exists(process_dir):
+                os.makedirs(process_dir, mode=0o777, exist_ok=True)
+                
             json_filename = "offline_input_%s_%s_%s_%s.json" % (exp_type, prefix, run_number, timestamp)
-            local_json_path = os.path.join(tempfile.gettempdir(), json_filename)
+            local_json_path = os.path.join(process_dir, json_filename)
 
             with open(local_json_path, 'w') as f:
                 json.dump(self.current_dc_parameters, f, indent=4)
             
-            logging.getLogger("HWR").info("[OFFLINE] 成功生成离线分析参数文件: %s" % local_json_path)
+            # 给权限，保证 EDNA2 那边跨主机读取不会被拦截
+            os.chmod(local_json_path, 0o777)
+            
+            logging.getLogger("HWR").info("[OFFLINE] 成功在 PROCESSED_DATA 生成离线参数文件: %s" % local_json_path)
 
             trigger_script = "/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/run_edna2_offline_wrapper.sh" 
             
@@ -1414,7 +1456,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             if self.current_dc_parameters["experiment_type"] == "Mesh":
                 number_of_snapshots = 1
             else:
-                number_of_snapshots = 4  
+                number_of_snapshots = 1
 
             logging.getLogger("user_level_log").info(
                 "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
