@@ -1142,8 +1142,16 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 proposal_number = HWR.beamline.session.proposal_number
                 proposal_user = f"{proposal_code}{proposal_number}"
                 
-                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/")
-                real_data_dir = f"/ramdisk/{proposal_user}{sub_dir}"
+                # --- 🌟 智能防御路径重叠修复开始 ---
+                # 先剥离掉可能干扰 os.path.join 的首部斜杠
+                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/").lstrip("/")
+                
+                # 如果发现切片出来的子路径已经自带了用户账号（例如 opid1/2026...），就不再重复叠加
+                if sub_dir.startswith(proposal_user):
+                    real_data_dir = os.path.normpath(os.path.join("/ramdisk", sub_dir))
+                else:
+                    real_data_dir = os.path.normpath(os.path.join("/ramdisk", proposal_user, sub_dir))
+                # --- 🌟 智能防御路径重叠修复结束 ---
             else:
                 real_data_dir = original_dir
 
@@ -1207,10 +1215,15 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 json.dump(self.current_dc_parameters, f, indent=4)
             
             # 给权限，保证 EDNA2 那边跨主机读取不会被拦截
-            os.chmod(local_json_path, 0o777)
+            try:
+                import shutil
+                tmp_json_path = os.path.join("/tmp", f"edna_offline_input_{prefix}_{run_number}.json")
+                shutil.copy(local_json_path, tmp_json_path)
+                os.chmod(tmp_json_path, 0o777)
+                logging.getLogger("HWR").info("[OFFLINE] 双保险成功：已将工单同步备份至 /tmp: %s" % tmp_json_path)
+            except Exception as e:
+                logging.getLogger("HWR").error("[OFFLINE] 同步备份至 /tmp 失败: %s" % e)
             
-            logging.getLogger("HWR").info("[OFFLINE] 成功在 PROCESSED_DATA 生成离线参数文件: %s" % local_json_path)
-
             trigger_script = "/home/mxcube19u1/mxcube/mxcubecore/mxcubecore/configuration/bl19u/run_edna2_offline_wrapper.sh" 
             
             cmd = 'bash "%s" "%s" "%s"' % (trigger_script, exp_type, local_json_path)
@@ -1327,8 +1340,13 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 proposal_number = HWR.beamline.session.proposal_number
                 proposal_user = f"{proposal_code}{proposal_number}"
                 
-                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/")
-                real_raw_dir = f"/ramdisk/{proposal_user}{sub_dir}"
+                # --- 🌟 智能防御路径重叠修复开始 ---
+                sub_dir = original_dir.split("RAW_DATA")[1].replace("//", "/").lstrip("/")
+                if sub_dir.startswith(proposal_user):
+                    real_raw_dir = os.path.normpath(os.path.join("/ramdisk", sub_dir))
+                else:
+                    real_raw_dir = os.path.normpath(os.path.join("/ramdisk", proposal_user, sub_dir))
+                # --- 🌟 智能防御路径重叠修复结束 ---
             else:
                 real_raw_dir = original_dir
 
