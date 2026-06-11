@@ -1,70 +1,125 @@
-from PyTransmission import matt_control
-from mxcubecore.BaseHardwareObjects import HardwareObject
-from mxcubecore import HardwareRepository as HWR
+import logging
+import gevent
+from mxcubecore.HardwareObjects.abstract.AbstractTransmission import AbstractTransmission
 
-
-class Transmission(HardwareObject):
+class Transmission(AbstractTransmission):
     def __init__(self, name):
-        HardwareObject.__init__(self, name)
-
+        super(Transmission, self).__init__(name)
         self.labels = []
         self.indexes = []
+        self.filters = [] 
         self.attno = 0
-        # TO DO: clean this!!!
-        # self.get_value = self.get_value
-        # self.getAttFactor = self.get_value
-        # self.setTransmission = self.set_value
+        
+        self.preset_combinations = {
+            100: [],         
+            90:  [0],        
+            80:  [1],        
+            70:  [0, 1],     
+            60:  [2],        
+            50:  [0, 2],     
+            40:  [1, 2],     
+            30:  [0, 1, 2],  
+            20:  [3],        
+            10:  [0, 3],     
+            0:   [0, 1, 2, 3] 
+        }
 
-    def init(self):
-
-        self.__matt = matt_control.MattControl(
-            self.get_property("wago_ip"),
-            len(self["filter"]),
-            0,
-            self.get_property("type"),
-            self.get_property("alternate"),
-            self.get_property("status_module"),
-            self.get_property("control_module"),
-            self.get_property("datafile"),
-        )
-        self.__matt.connect()
-
+    def get_limits(self):
+        return (0.0, 100.0)
+        
     def is_ready(self):
         return True
 
-    def getAtteConfig(self):
-        self.attno = len(self["filter"])
+    def init(self):
+        if hasattr(self, "update_state") and hasattr(self, "STATES"):
+            self.update_state(self.STATES.READY)
 
-        for att_i in range(self.attno):
-            obj = self["filter"][att_i]
-            self.labels.append(obj.label)
-            self.indexes.append(obj.index)
+        self.filters = []
+        self.indexes = []
+   
+        for i in range(4): 
+            chan_state = self.get_channel_object(f"state_{i}")
+            if chan_state is not None:
+                self.filters.append({
+                    "index": i,
+                    "state": chan_state
+                })
+                self.indexes.append(i)
+                chan_state.connect_signal("update", self._on_status_changed)
+                print(f"[Transmission] find FIL{i}  PV")
+            else:
+                print(f"[Transmission] cannot find state_{i} ")
+                
+        self.attno = len(self.filters)
+        self._update()
 
     def getAttState(self):
-        return self.__matt.pos_read()
+        curr_bits = 0
+        for flt in self.filters:
+            if flt["state"] is not None:
+                val = flt["state"].get_value()
+                if str(val).strip() in ("In", "IN", "in", "1", 1):
+                    curr_bits |= (1 << flt["index"])
+        return curr_bits
+
+    def is_in(self, attenuator_index):
+        curr_bits = self.getAttState()
+        return bool((1 << attenuator_index) & curr_bits)
 
     def _set_value(self, value):
-        self.__matt.set_energy(HWR.beamline.energy.get_value())
-        self.__matt.transmission_set(value)
-        self._update()
+        print(f"\n [Transmission] target: {value}%")
+
+        if hasattr(self, "update_state"): self.update_state(self.STATES.BUSY)
+            
+        value = max(0, min(100, float(value)))
+        target_level = int(round(value / 10.0) * 10)
+        target_indexes = self.preset_combinations.get(target_level, [])
+  
+        for flt in self.filters:
+            idx = flt["index"]
+            cmd = "In" if idx in target_indexes else "Out"
+            flt["state"].set_value(cmd)
+                
+
+        def force_update():
+            gevent.sleep(0.8)
+            self._update()
+            gevent.sleep(1.0)
+            self._update()
+
+            if hasattr(self, "update_state"): self.update_state(self.STATES.READY)
+            print(" [Transmission] done。")
+            
+        gevent.spawn(force_update)
+        return float(value)
+
+    def toggle(self, attenuator_index):
+        flt = next((f for f in self.filters if f["index"] == attenuator_index), None)
+        if not flt or flt["state"] is None:
+            return
+
+        if self.is_in(attenuator_index):
+            flt["state"].set_value("Out")
+        else:
+            flt["state"].set_value("In")
+
+    def get_value(self):
+        current_indexes = []
+        for flt in self.filters:
+            if self.is_in(flt["index"]):
+                current_indexes.append(flt["index"])
+                
+        current_indexes.sort()
+        for level, indexes in self.preset_combinations.items():
+            if current_indexes == sorted(indexes):
+                return float(level)
+                
+        return 100.0
 
     def _update(self):
         self.emit("attStateChanged", self.getAttState())
         self.emit("attFactorChanged", self.get_value())
+        self.emit("valueChanged", self.get_value())
 
-    def toggle(self, attenuator_index):
-        idx = self.indexes[attenuator_index]
-        if self.is_in(attenuator_index):
-            self.__matt.mattout(idx)
-        else:
-            self.__matt.mattin(idx)
+    def _on_status_changed(self, value=None):
         self._update()
-
-    def get_value(self):
-        self.__matt.set_energy(HWR.beamline.energy.get_value())
-        return self.__matt.transmission_get()
-
-    def is_in(self, attenuator_index):
-        curr_bits = self.getAttState()
-        idx = self.indexes[attenuator_index]
-        return bool((1 << idx) & curr_bits)

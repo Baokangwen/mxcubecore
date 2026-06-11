@@ -1,0 +1,29 @@
+<device class="Transmission">
+    <username>transmission</username>
+    
+    <values>
+        <value>0</value>
+        <value>10</value>
+        <value>20</value>
+        <value>30</value>
+        <value>40</value>
+        <value>50</value>
+        <value>60</value>
+        <value>70</value>
+        <value>80</value>
+        <value>90</value>
+        <value>100</value>
+    </values>
+
+    <filter index="0" label="0.1mm (10%)" />
+    <channel type="epics" name="state_0">FILTERS:XIA:FIL0</channel>
+
+    <filter index="1" label="0.2mm (20%)" />
+    <channel type="epics" name="state_1">FILTERS:XIA:FIL1</channel>
+
+    <filter index="2" label="0.4mm (40%)" />
+    <channel type="epics" name="state_2">FILTERS:XIA:FIL2</channel>
+
+    <filter index="3" label="0.8mm (80%)" />
+    <channel type="epics" name="state_3">FILTERS:XIA:FIL3</channel>
+</device>

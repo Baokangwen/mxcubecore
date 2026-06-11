@@ -121,9 +121,11 @@ beamline_setup:
     -
       label: Transmission
       attribute: transmission
-      step: 0.1
-      precision: 1
+      step: 10
+      precision: 0
       suffix: "%"
+      # 【增加超时逻辑，防止组件死等】
+      timeout: 2000
     -
       label: Cryo
       attribute: cryo

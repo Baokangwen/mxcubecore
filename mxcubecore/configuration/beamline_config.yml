@@ -34,7 +34,7 @@ _objects:
 #    - detector: detector.xml
 
     - beam: beam_info.xml
-    - transmission: transmission.xml
+    - transmission: bl19u/transmission.xml
     - flux: flux.xml
     - cryo: cryo.xml
     - energy: bl19u/energy.xml
