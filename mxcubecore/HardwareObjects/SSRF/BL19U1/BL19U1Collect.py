@@ -1306,7 +1306,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             # temp fix for ispyb permission issues
             try:
                 session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % (session_dir))
+                # os.system("chmod -R 777 %s" % (session_dir))
             except Exception as ex:
                 print(ex)
 
@@ -1368,7 +1368,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
             except:
                 pass
 
-        edna2_user = "demo"
+        edna2_user = "bl19u1"
         edna2_ip = "10.30.61.207"
         edna2_python_env = "/home/demo/anaconda3/envs/edna2/bin/python"
         
@@ -1442,7 +1442,7 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
                 image_id = HWR.beamline.lims.store_image(lims_image)
                 logging.getLogger("HWR").info("LIMS IMAGE, imageid: %s" % image_id)
                 session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % session_dir)
+                # os.system("chmod -R 777 %s" % session_dir)
                 return image_id
             except Exception as ex:
                 logging.getLogger("HWR").error("LIMS IMAGE, error: %s" % ex)

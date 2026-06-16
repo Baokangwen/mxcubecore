@@ -9,7 +9,7 @@ SHARED_JSON="$2"     # 接收来自 Python 传入的共享路径
 # 结果类似：offline_input_OSC_Sample-8-05_1_20260606_020848
 JOB_NAME=$(basename "$SHARED_JSON" .json)
 
-REMOTE_HOST="demo@10.30.61.207"
+REMOTE_HOST="bl19u1@10.30.61.207"
 
 # 总控日志（记录谁在什么时候被触发了）保留在一个公共文件里，方便查看流量
 echo "--- Offline Processing Triggered: $(date) ---" >> /tmp/edna_offline.log
