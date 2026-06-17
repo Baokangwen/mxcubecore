@@ -1080,6 +1080,12 @@ class BL19U1Collect(AbstractCollect, HardwareObject):
         Descript. : 收集完成后的收尾工作。
         """
         success_msg = "Data collection successful"
+        if self.current_dc_parameters.get("experiment_type") == "Mesh":
+            real_total_frames = getattr(self, "mesh_total_nb_frames", 1)
+            real_num_lines = getattr(self, "mesh_num_lines", 1)
+            self.current_dc_parameters["oscillation_sequence"][0]["number_of_images"] = real_total_frames
+            self.current_dc_parameters["oscillation_sequence"][0]["number_of_lines"] = real_num_lines
+
         
         self.emit("collectOscillationFinished", (self.owner, True, success_msg, self.current_dc_parameters.get("collection_id"), self.osc_id, self.current_dc_parameters))
         self.emit("collectEnded", self.owner, True, success_msg)

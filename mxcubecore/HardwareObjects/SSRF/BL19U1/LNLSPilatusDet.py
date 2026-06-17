@@ -18,6 +18,10 @@ from mxcubecore.HardwareObjects.abstract.AbstractDetector import (
     AbstractDetector,
 )
 import epics
+import warnings
+
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal")
+epics.ca.replace_printf_handler(lambda *args: None)
 
 from mxcubecore.utils.pymysql_comm import UsingMysql
 from mxcubecore.service.dataItem_service import insert_new_data_to_job
