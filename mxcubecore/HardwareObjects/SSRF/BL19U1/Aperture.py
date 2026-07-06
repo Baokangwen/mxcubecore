@@ -117,19 +117,58 @@ class Aperture(AbstractAperture):
         super().set_diameter_index(diameter_index)
         self.chan_diameter_index.set_value(diameter_index)
 
+    # def set_diameter(self, diameter_size, timeout=None):
+    #     """
+    #     Sets new aperture size
+
+    #     Args:
+    #         diameter_size: diameter size in microns (int)
+    #         timeout: wait timeout is seconds
+    #     Returns:
+    #     """
+    #     diameter_index = self._diameter_size_list.index(diameter_size)
+    #     self.chan_diameter_index.set_value(diameter_index)
+    #     self.chan_diameter_index.update()
+
     def set_diameter(self, diameter_size, timeout=None):
         """
-        Sets new aperture size
-
-        Args:
-            diameter_size: diameter size in microns (int)
-            timeout: wait timeout is seconds
-        Returns:
+        Sets new aperture size (带强力 Debug 版)
         """
-        diameter_index = self._diameter_size_list.index(diameter_size)
-        self.chan_diameter_index.set_value(diameter_index)
-        self.chan_diameter_index.update()
-
+        print("\n" + "="*50)
+        print(f"🚀 [Aperture DEBUG] 收到前端请求，目标光斑大小: '{diameter_size}' (类型: {type(diameter_size)})")
+        
+        try:
+            # 1. 强制转换为整型，防止字符串 '20' 导致的找不到元素报错
+            target_size = int(float(diameter_size))
+            
+            # 2. 打印当前 Python 脑子里的硬件列表，看是不是错位的
+            print(f"📋 [Aperture DEBUG] 当前加载的孔位列表: {self._diameter_size_list}")
+            
+            # 3. 计算下标
+            diameter_index = self._diameter_size_list.index(target_size)
+            print(f"🎯 [Aperture DEBUG] 换算出的硬件下标为: {diameter_index}")
+            
+            # 4. 发送指令
+            print(f"📡 [Aperture DEBUG] 正在向硬件通道发送下标 {diameter_index}...")
+            self.chan_diameter_index.set_value(diameter_index)
+            self.chan_diameter_index.update()
+            
+            # 5. 等待 1 秒，然后去底层读回来，看看硬件到底认不认账
+            import time
+            time.sleep(1.0)
+            actual_index = self.chan_diameter_index.get_value()
+            print(f"👀 [Aperture DEBUG] 硬件当前实际处于下标: {actual_index}")
+            
+            if actual_index == diameter_index:
+                print("✅ [Aperture DEBUG] 成功！硬件已联动。")
+            else:
+                print("❌ [Aperture DEBUG] 失败！硬件拒绝写入或未发生位移。")
+                
+        except Exception as e:
+            # 必须把被吞掉的错误打印出来
+            print(f"💥 [Aperture DEBUG] 代码执行崩溃，异常信息: {str(e)}")
+            
+        print("="*50 + "\n")
     def set_position_index(self, position_index):
         """
         Sets new aperture position

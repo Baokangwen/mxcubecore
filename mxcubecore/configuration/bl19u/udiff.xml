@@ -11,7 +11,7 @@
 <!--    <sampy delta="0.01">0.0</sampy>-->
 <!--    <bstopz delta="0.01">-30</bstopz>-->
 <!--  </centringReferencePosition>-->
-  <!--  <object href="/bliss" role="controller"/>-->
+<!--  <object href="/bliss" role="controller"/>-->
 
   <motors>
     <device role="phi" hwrid="./udiff/udiff_omega"/>
